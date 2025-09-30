@@ -143,3 +143,6 @@ dmypy.json
 /results/
 /data/
 /models/
+
+# test notebooks
+new_project_test.ipynb

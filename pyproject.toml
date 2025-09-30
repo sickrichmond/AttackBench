@@ -12,38 +12,37 @@ authors = [
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "torch>=1.12.1",
-    "torchvision>=0.13.1",
-    "matplotlib>=3.5.1",
-    "pandas>=1.3.5",
+    "torch==1.12.1",
+    "torchvision==0.13.1",
+    "matplotlib==3.5.1",
+    "pandas==1.3.5",
     "scipy<1.8.0",
-    "tqdm>=4.56.2",
-    "wget>=3.2",
+    "tqdm==4.56.2",
+    "wget==3.2",
 ]
 
 [project.optional-dependencies]
 # Attack package - enables all adversarial attack libraries
 attacks = [
-    "adversarial-robustness-toolbox>=1.14.0",
-    "foolbox>=3.3.3",
-    "deeprobust>=0.2.8",
-    "torchattacks>=3.4.0",
-    "cleverhans>=4.0.0",
+    "adversarial-robustness-toolbox",
+    "foolbox",
+    "deeprobust",
+    "torchattacks",
+    "cleverhans==4.0.0",
     "robustbench @ git+https://github.com/RobustBench/robustbench.git",
-    "adversarial-library @ git+https://github.com/jeromerony/adversarial-library.git",
+    "adv-lib @ git+https://github.com/jeromerony/adversarial-library.git",
 ]
 
 # Dataset package - enables loading of additional datasets
 datasets = [
     "pillow>=8.0.0",
     "requests>=2.25.0",
-    "zipfile-deflate64>=0.2.0",
 ]
 
 # Model package - enables loading of pre-trained models
@@ -60,21 +59,20 @@ metrics = [
     "seaborn>=0.11.0",
     "plotly>=5.0.0",
     "tabulate>=0.9.0",
-    "scipy>=1.7.0",
 ]
 
 # Complete package - includes all optional dependencies
 all = [
-    "adversarial-robustness-toolbox>=1.14.0",
-    "foolbox>=3.3.3", 
-    "deeprobust>=0.2.8",
-    "torchattacks>=3.4.0",
-    "cleverhans>=4.0.0",
+    "adversarial-robustness-toolbox",
+    "foolbox",
+    "deeprobust",
+    "torchattacks", 
+    "cleverhans==4.0.0",
     "robustbench @ git+https://github.com/RobustBench/robustbench.git",
-    "adversarial-library @ git+https://github.com/jeromerony/adversarial-library.git",
+    "adv-lib @ git+https://github.com/jeromerony/adversarial-library.git",
     "timm>=0.9.0",
-    "transformers>=4.20.0", 
-    "pretrainedmodels>=0.7.4",
+    "transformers>=4.20.0",
+    "pretrainedmodels>=0.7.4", 
     "scikit-learn>=1.0.0",
     "seaborn>=0.11.0",
     "plotly>=5.0.0",
@@ -86,8 +84,8 @@ all = [
 # Development package
 dev = [
     "pytest>=6.0",
-    "black>=22.0", 
-    "isort>=5.0",
+    "black>=22.0",
+    "isort>=5.0", 
     "flake8>=4.0",
 ]
 
