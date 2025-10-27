@@ -1,0 +1,17 @@
+{
+  "threat_model": "linf",
+  "attack_metadata": {
+    "ASR": 0.212,
+    "accuracy": 0.8969,
+    "total_samples": 10000,
+    "successful_attacks": 2120
+  },
+  "available_norms": [
+    "linf",
+    "l0",
+    "l1",
+    "l2"
+  ],
+  "file_path": "optimality_test/pgd_reference/precompiled_distances.npz",
+  "total_samples": 10000
+}

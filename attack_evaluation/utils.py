@@ -1,4 +1,5 @@
 import hashlib
+import inspect  # Add this import
 import random
 import traceback
 import warnings
@@ -22,7 +23,26 @@ def run_attack(model: BenchModel,
                metrics: Dict[str, Callable] = _default_metrics,
                threat_model: str = 'l2',
                return_adv: bool = False,
-               debug: bool = False) -> dict:
+               debug: bool = False,
+               **kwargs) -> dict:  # Accepts **kwargs
+    """
+    Run an adversarial attack on a model using the provided data loader.
+    
+    Args:
+        model: BenchModel wrapper around the target model
+        loader: DataLoader containing input data
+        attack: Attack function to execute
+        targets: Target labels for targeted attacks (None for untargeted)
+        metrics: Dictionary of distance metrics to compute
+        threat_model: Type of threat model ('l2', 'linf', etc.)
+        return_adv: Whether to return adversarial examples
+        debug: Whether to run in debug mode
+        **kwargs: Additional arguments passed to the attack function
+        
+    Returns:
+        Dictionary containing attack results and statistics
+    """
+    
     device = next(model.parameters()).device
     targeted = True if targets is not None else False
     loader_length = len(loader)
@@ -38,24 +58,27 @@ def run_attack(model: BenchModel,
         if return_adv:
             all_inputs.append(inputs.clone())
 
-        # compute hashes to ensure that input samples are identical
+        # Compute hashes to ensure that input samples are identical
         for input in inputs:
             input_hash = hashlib.sha512(np.ascontiguousarray(input.numpy())).hexdigest()
             hashes.append(input_hash)
 
-        inputs, labels = inputs.to(device), labels.to(device)  # move data to device
-        attack_inputs, attack_labels = inputs.clone(), labels.clone()  # ensure no in-place modification
-        # start tracking of the batch
+        inputs, labels = inputs.to(device), labels.to(device)  # Move data to device
+        attack_inputs, attack_labels = inputs.clone(), labels.clone()  # Ensure no in-place modification
+        
+        # Start tracking of the batch
         model.start_tracking(inputs=inputs, labels=labels, targeted=targeted, targets=targets,
                              tracking_metric=_default_metrics[threat_model], tracking_threat_model=threat_model)
 
         if debug:
-            adv_inputs = attack(model=model, inputs=attack_inputs, labels=attack_labels,
-                                targeted=targeted, targets=targets)
+            adv_inputs = _call_attack_with_kwargs(
+                attack, model, attack_inputs, attack_labels, targeted, targets, **kwargs
+            )
         else:
             try:
-                adv_inputs = attack(model=model, inputs=attack_inputs, labels=attack_labels,
-                                    targeted=targeted, targets=targets)
+                adv_inputs = _call_attack_with_kwargs(
+                    attack, model, attack_inputs, attack_labels, targeted, targets, **kwargs
+                )
                 batch_failures.append(False)
             except Exception:
                 warnings.warn(f'Error running batch for {attack}')
@@ -69,11 +92,11 @@ def run_attack(model: BenchModel,
         forwards.extend(model.num_forwards.cpu().tolist())
         backwards.extend(model.num_backwards.cpu().tolist())
 
-        # original inputs
+        # Original inputs
         accuracies.extend(model.correct.cpu().tolist())
         ori_success.extend(model.ori_success.cpu().tolist())
 
-        # checking box constraint
+        # Checking box constraint
         batch_box_failures = ((adv_inputs < 0) | (adv_inputs > 1)).flatten(1).any(1)
         box_failures.extend(batch_box_failures.cpu().tolist())
 
@@ -123,12 +146,62 @@ def run_attack(model: BenchModel,
 
 
 def set_seed(seed: int = None) -> None:
-    """Random seed (int) generation for PyTorch. See https://pytorch.org/docs/stable/notes/randomness.html for further
-    details."""
+    """
+    Set random seed for PyTorch, NumPy, and Python random module.
+    
+    See https://pytorch.org/docs/stable/notes/randomness.html for further details.
+    
+    Args:
+        seed: Random seed value (None to skip seeding)
+    """
     if seed is None:
         return
 
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
+
+def _call_attack_with_kwargs(attack, model, inputs, labels, targeted, targets, **kwargs):
+    """
+    Call the attack function filtering kwargs based on its signature.
+    
+    This function inspects the attack's signature and only passes parameters
+    that the function can accept, avoiding TypeError from unexpected kwargs.
+    
+    Args:
+        attack: Attack function to call
+        model: Model to attack
+        inputs: Input tensors
+        labels: True labels
+        targeted: Whether attack is targeted
+        targets: Target labels (for targeted attacks)
+        **kwargs: Additional arguments to filter and pass
+        
+    Returns:
+        Adversarial examples from the attack
+    """
+    
+    # Get the attack's signature
+    sig = inspect.signature(attack)
+    
+    # Base parameters always present
+    attack_params = {
+        'model': model,
+        'inputs': inputs,
+        'labels': labels,
+    }
+    
+    # Add optional parameters if accepted
+    if 'targeted' in sig.parameters:
+        attack_params['targeted'] = targeted
+    if 'targets' in sig.parameters:
+        attack_params['targets'] = targets
+    
+    # Filter kwargs to include only those accepted
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            attack_params[key] = value
+    
+    return attack(**attack_params)
 

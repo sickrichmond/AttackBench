@@ -51,19 +51,9 @@ for module_name, module in library_modules.items():
 def get_attack(attack_name: str = None, source: str = None, name: str = None, threat_model: str = None) -> Callable:
     """
     Get attack function by name or source/name combination.
-    
-    Args:
-        attack_name: Full attack name (e.g., 'adv_lib_pgd', 'original_autopgd')
-        source: Library source (e.g., 'adv_lib', 'original') 
-        name: Attack name within the source (e.g., 'pgd', 'autopgd')
-        threat_model: Threat model (e.g., 'l2', 'linf')
-    
-    Returns:
-        Callable attack function
     """
     if attack_name:
         # Parse attack_name to extract source and name
-        # Try to match against known library sources first
         source = None
         name = None
         
@@ -85,62 +75,43 @@ def get_attack(attack_name: str = None, source: str = None, name: str = None, th
     if name not in library_getters[source]:
         raise ValueError(f"Unknown attack name '{name}' for source '{source}'. Available: {list(library_getters[source].keys())}")
     
-    if source not in library_getters:
-        raise ValueError(f"Unknown attack source: {source}. Available: {list(library_getters.keys())}")
-    
-    if name not in library_getters[source]:
-        raise ValueError(f"Unknown attack name '{name}' for source '{source}'. Available: {list(library_getters[source].keys())}")
-    
     # Get the configuration function and getter function
     config_func = attack_configs[source].get(name)
     getter_func = library_getters[source][name]
     
     if not config_func:
-        raise ValueError(f"No configuration function found for attack {name} in source {source}")
+        print(f"Warning: No configuration function found for attack {name} in source {source}")
+        params = {}
+    else:
+        # Parse parameters from config
+        params = _parse_config_params(config_func)
+        print(f"Debug: Parsed params from config: {params}")
+
+    # FALLBACK: If parsing fails, use signature inspection
+    sig = inspect.signature(getter_func)
+    required_params = [p for p in sig.parameters.values() 
+                      if p.default == inspect.Parameter.empty and p.name != 'self']
     
-    # Simple approach: extract parameters by examining the source code
-    source_lines = inspect.getsourcelines(config_func)[0]
+    print(f"Debug: Required parameters for {source}_{name}: {[p.name for p in required_params]}")
     
-    # Parse the function body to extract variable assignments
-    params = {}
-    for line in source_lines[1:]:  # Skip the function definition line
-        line = line.strip()
-        if '=' in line and not line.startswith('#'):
-            try:
-                var_name, var_value = line.split('=', 1)
-                var_name = var_name.strip()
-                var_value = var_value.strip()
-                
-                # Simple evaluation of common values
-                if var_value == 'True':
-                    params[var_name] = True
-                elif var_value == 'False':
-                    params[var_name] = False
-                elif var_value == 'None':
-                    params[var_name] = None
-                elif var_value.startswith("'") and var_value.endswith("'"):
-                    params[var_name] = var_value[1:-1]  # String literal
-                elif var_value.startswith('"') and var_value.endswith('"'):
-                    params[var_name] = var_value[1:-1]  # String literal
-                else:
-                    # Try to evaluate as a Python expression safely
-                    try:
-                        # Safe evaluation for numeric expressions
-                        if all(c in '0123456789.+-*/ ()' for c in var_value):
-                            params[var_name] = eval(var_value)
-                        elif var_value.isdigit():
-                            params[var_name] = int(var_value)
-                        elif var_value.replace('.', '').isdigit():
-                            params[var_name] = float(var_value)
-                    except:
-                        continue  # Skip if we can't evaluate
-            except:
-                continue  # Skip lines we can't parse
+    # Verify that all the required parameters are present
+    missing_params = []
+    for param in required_params:
+        if param.name not in params:
+            missing_params.append(param.name)
+    
+    if missing_params:
+        print(f"Warning: Missing required parameters: {missing_params}")
+        # Apply default values for missing parameters
+        default_values = _get_smart_defaults(source, name, missing_params, threat_model)
+        params.update(default_values)
+        print(f"Debug: Applied smart defaults: {default_values}")
     
     # Call the getter function with the parameters
     try:
-        sig = inspect.signature(getter_func)
         filtered_params = {k: v for k, v in params.items() if k in sig.parameters}
+        
+        print(f"Debug: Final params for {source}_{name}: {filtered_params}")
         attack = getter_func(**filtered_params)
         
         wrapper = library_modules[source]._wrapper
@@ -152,6 +123,117 @@ def get_attack(attack_name: str = None, source: str = None, name: str = None, th
             
     except Exception as e:
         print(f"Error calling getter function for {source}_{name}: {e}")
-        print(f"Parsed params: {params}")
-        print(f"Filtered params: {filtered_params}")
+        print(f"Function signature: {sig}")
+        print(f"Provided params: {filtered_params}")
         raise
+
+
+def _get_smart_defaults(source: str, name: str, missing_params: list, threat_model: str = None) -> dict:
+    """Genera valori di default intelligenti per parametri mancanti"""
+    defaults = {}
+    
+    for param_name in missing_params:
+        # General defaults based on paramether name
+        if param_name in ['eps', 'epsilon']:
+            defaults[param_name] = 8/255  # Budget L∞ default
+        elif param_name in ['num_steps', 'steps', 'iterations']:
+            defaults[param_name] = 40     # default number of iterations
+        elif param_name in ['step_size', 'alpha']:
+            defaults[param_name] = 2/255  # default step size
+        elif param_name in ['relative_step_size']:
+            defaults[param_name] = 0.1    # default relative step size
+        elif param_name in ['threat_model', 'norm']:
+            defaults[param_name] = threat_model or 'linf'
+        elif param_name in ['num_random_init', 'random_init']:
+            defaults[param_name] = 0
+        elif param_name in ['random_eps', 'random_start']:
+            defaults[param_name] = False
+        elif param_name in ['targeted']:
+            defaults[param_name] = False
+        elif param_name in ['clip_min']:
+            defaults[param_name] = 0.0
+        elif param_name in ['clip_max']:
+            defaults[param_name] = 1.0
+        elif param_name in ['loss_fn', 'loss']:
+            defaults[param_name] = None  
+        
+        
+        elif source == 'adv_lib':
+            if param_name == 'relative_step_size':
+                defaults[param_name] = 0.1 
+            elif param_name == 'abs_step_size':
+                defaults[param_name] = None
+        elif source == 'art':
+            if param_name == 'estimator':
+                defaults[param_name] = None  
+        elif source == 'foolbox':
+            if param_name == 'distance':
+                defaults[param_name] = 'linf'
+        
+        # Try none if you can't find a default
+        if param_name not in defaults:
+            print(f"Warning: No smart default found for parameter '{param_name}', using None")
+            defaults[param_name] = None
+    
+    return defaults
+
+
+def _parse_config_params(config_func):
+    """Parse parameters from configuration function with better handling"""
+    params = {}
+    
+    try:
+        source_lines = inspect.getsourcelines(config_func)[0]
+        
+        for line in source_lines[1:]:  # Skip function definition
+            line = line.strip()
+            
+            # Skip comments and empty lines
+            if not line or line.startswith('#'):
+                continue
+                
+            # Look for variable assignments
+            if '=' in line and not line.startswith('#'):
+                try:
+                    # Split only on first = to handle cases like "x = y = z"
+                    var_name, var_value = line.split('=', 1)
+                    var_name = var_name.strip()
+                    var_value = var_value.strip()
+                    
+                    # Remove inline comments FIRST
+                    if '#' in var_value:
+                        var_value = var_value.split('#')[0].strip()
+                    
+                    # Clean quotes
+                    if (var_value.startswith("'") and var_value.endswith("'")) or \
+                       (var_value.startswith('"') and var_value.endswith('"')):
+                        params[var_name] = var_value[1:-1]
+                    # Handle boolean values
+                    elif var_value == 'True':
+                        params[var_name] = True
+                    elif var_value == 'False':
+                        params[var_name] = False
+                    elif var_value == 'None':
+                        params[var_name] = None
+                    # Handle numeric values
+                    else:
+                        try:
+                            # Try int first
+                            if var_value.isdigit():
+                                params[var_name] = int(var_value)
+                            # Try float
+                            elif '.' in var_value and var_value.replace('.', '').isdigit():
+                                params[var_name] = float(var_value)
+                            # Try fractions like 8/255
+                            elif '/' in var_value:
+                                parts = var_value.split('/')
+                                if len(parts) == 2 and all(p.strip().isdigit() for p in parts):
+                                    params[var_name] = float(parts[0]) / float(parts[1])
+                        except:
+                            continue  # Skip if we can't parse
+                except:
+                    continue  # Skip malformed lines
+    except:
+        pass  # If we can't get source, return empty params
+    
+    return params
