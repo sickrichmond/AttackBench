@@ -10,7 +10,7 @@ from deeprobust.image.attack.pgd import PGD
 from .wrapper import DeepRobustMinimalWrapper, deeprobust_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
-_prefix = 'dr'
+_prefix = 'deeprobust'  
 _wrapper = deeprobust_wrapper
 
 

@@ -21,7 +21,7 @@ from .wrapper import adv_lib_minimal_wrapper, adv_lib_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
 _prefix = 'adv_lib'
-_wrapper = adv_lib_wrapper
+_wrapper = adv_lib_wrapper  # Assicurati che questa funzione esista già
 _norms = {
     'l0': 0,
     'l1': 1,

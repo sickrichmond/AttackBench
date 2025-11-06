@@ -32,44 +32,24 @@ METRICS = OrderedDict([
 
 
 def run_attack(
-    model: nn.Module,  # Only nn.Module, no strings
-    dataset: DataLoader,  # Only DataLoader, no strings  
-    attack: Callable,  # Only callable, no strings
+    model: nn.Module,
+    dataset: DataLoader,
+    attack: Callable,
     threat_model: str,
-    batch_size: int = 128,  # No longer used for dataset
     device: Optional[torch.device] = None,
     save_results: bool = False,
     save_adversarial: bool = False,
     output_dir: Optional[str] = None,
     seed: int = 42,
     debug: bool = False,
-    compute_analysis: bool = True,  # Keep this parameter
-    save_precompiled_distances: bool = False,
-    certified_thresholds: Optional[List[float]] = None,  # New parameter
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Execute an adversarial attack and return results.
+    Execute an adversarial attack and return basic results.
+    SIMPLIFIED VERSION - no complex analysis here.
     
-    Args:
-        model: PyTorch model (nn.Module)
-        dataset: DataLoader with the dataset
-        attack: Attack function (callable)
-        threat_model: Threat type ('linf', 'l2', 'l0', 'l1')
-        batch_size: DEPRECATED - ignored (use DataLoader's batch_size)
-        device: Device for execution (auto-detect if None)
-        save_results: Whether to save results.json
-        save_adversarial: Whether to save attack_data.pt
-        output_dir: Output directory
-        seed: Seed for reproducibility
-        debug: Debug mode
-        compute_analysis: Whether to compute advanced statistics
-        save_precompiled_distances: Whether to save distances for future reuse
-        certified_thresholds: Thresholds for robust accuracy (e.g., [4/255, 8/255])
-        **kwargs: Additional parameters for the attack
-        
     Returns:
-        Dict containing attack results
+        Dict with basic attack results (ASR, accuracy, distances, timing)
     """
     
     # Input validation
@@ -102,11 +82,11 @@ def run_attack(
     if len(dataset) == 0:
         raise ValueError("Dataset is empty - no inputs to attack")
     
-    # Run attack - simplified
+    # Run attack - simplified (ONLY basic results)
     attack_data = _run_attack_impl(
         model=model,
-        loader=dataset,  # Directly the DataLoader
-        attack=attack,   # Directly the callable
+        loader=dataset,
+        attack=attack,
         metrics=METRICS,
         threat_model=threat_model,
         return_adv=save_adversarial,
@@ -118,17 +98,6 @@ def run_attack(
     if save_results or save_adversarial:
         _save_results(attack_data, model, dataset, attack, threat_model, 
                      output_dir, save_adversarial)
-    
-    # Advanced analysis (if requested)
-    if compute_analysis:
-        analysis_results = compute_attack_analysis(
-            attack_data, 
-            threat_model,
-            save_precompiled_distances=save_precompiled_distances,
-            certified_thresholds=certified_thresholds,
-            output_dir=output_dir if save_precompiled_distances else None
-        )
-        attack_data.update(analysis_results)
     
     return attack_data
 
@@ -161,19 +130,32 @@ def _save_results(attack_data, model, dataset, attack, threat_model, output_dir,
     with open(save_dir / 'results.json', 'w') as f:
         json.dump(results, f, indent=2, default=str)
 
-def compute_attack_analysis(
-    attack_data: Dict[str, Any], 
+def get_stats(
+    attack_results: Dict[str, Any], 
     threat_model: str,
-    save_precompiled_distances: bool = False,
     certified_thresholds: Optional[List[float]] = None,
+    save_precompiled_distances: bool = False,
     output_dir: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Compute advanced analysis on attack results"""
+    """
+    Compute advanced statistics and analysis on attack results.
+    SEPARATED from run_attack for modularity.
+    
+    Args:
+        attack_results: Results from run_attack()
+        threat_model: Threat model used
+        certified_thresholds: Thresholds for robust accuracy
+        save_precompiled_distances: Whether to save distances
+        output_dir: Output directory for saved files
+        
+    Returns:
+        Dict with advanced statistics (optimality, curves, etc.)
+    """
     
     analysis = {}
     
     # 1. Basic distance statistics
-    distances = attack_data.get('distances', {})
+    distances = attack_results.get('distances', {})
     
     for norm, dist_values in distances.items():
         dist_array = np.array(dist_values)
@@ -191,17 +173,17 @@ def compute_attack_analysis(
         analysis[f'{norm}_p95_distance'] = float(np.percentile(dist_array, 95))
         
         # Distances only for successful adversarial examples
-        adv_success = np.array(attack_data.get('adv_success', []))
+        adv_success = np.array(attack_results.get('adv_success', []))
         if adv_success.any():
             successful_distances = dist_array[adv_success]
             if len(successful_distances) > 0:
                 analysis[f'{norm}_successful_mean_distance'] = float(np.mean(successful_distances))
                 analysis[f'{norm}_successful_median_distance'] = float(np.median(successful_distances))
     
-    # 2. Optimality computation (using existing function)
-    if threat_model in distances and threat_model in attack_data.get('best_optim_distances', {}):
+    # 2. Optimality computation
+    if threat_model in distances and threat_model in attack_results.get('best_optim_distances', {}):
         main_distances = np.array(distances[threat_model])
-        best_distances = np.array(attack_data['best_optim_distances'][threat_model])
+        best_distances = np.array(attack_results['best_optim_distances'][threat_model])
         
         try:
             from analysis.utils import eval_optimality
@@ -211,20 +193,14 @@ def compute_attack_analysis(
             print("Warning: Cannot import eval_optimality from analysis.utils")
             analysis['optimality'] = None
     
-    # 3. Security evaluation curves (using existing functions if available)
+    # 3. Security evaluation curves
     if threat_model in distances:
         distances_array = np.array(distances[threat_model])
-        success_mask = np.array(attack_data.get('adv_success', []))
+        success_mask = np.array(attack_results.get('adv_success', []))
         
-        # Try to use existing functions for curves
-        try:
-            from analysis.plot_distances import compute_robust_accuracy_curve
-            curve_data = compute_robust_accuracy_curve(distances_array, success_mask)
-            analysis['robust_accuracy_curve'] = curve_data
-        except ImportError:
-            # Fallback to our implementation
-            curve_data = _compute_robust_accuracy_curve_fallback(distances_array, success_mask)
-            analysis['robust_accuracy_curve'] = curve_data
+        # Robust accuracy curve
+        curve_data = _compute_robust_accuracy_curve_fallback(distances_array, success_mask)
+        analysis['robust_accuracy_curve'] = curve_data
         
         # Certified robustness metrics
         if certified_thresholds is None:
@@ -241,15 +217,9 @@ def compute_attack_analysis(
             )
             analysis.update(cert_metrics)
     
-    # 4. Precompiled distances (using existing logic if possible)
+    # 4. Precompiled distances
     if save_precompiled_distances and output_dir:
-        try:
-            from analysis.compile_jsons import save_precompiled_data
-            precompiled_path = save_precompiled_data(attack_data, output_dir)
-        except ImportError:
-            # Fallback to our implementation
-            precompiled_path = _save_precompiled_distances_fallback(attack_data, threat_model, output_dir)
-        
+        precompiled_path = _save_precompiled_distances_fallback(attack_results, threat_model, output_dir)
         analysis['precompiled_distances_path'] = precompiled_path
     
     return analysis

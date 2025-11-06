@@ -18,7 +18,7 @@ from .wrapper import ArtMinimalWrapper, art_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
 _prefix = 'art'
-_wrapper = art_wrapper
+_wrapper = art_wrapper  # Assicurati che questa funzione esista già
 _norms = {
     'l0': 0,
     'l1': 1,

@@ -30,7 +30,7 @@ from foolbox.attacks import (
 from .wrapper import FoolboxMinimalWrapper, foolbox_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
-_prefix = 'fb'
+_prefix = 'foolbox'
 _wrapper = foolbox_wrapper
 
 

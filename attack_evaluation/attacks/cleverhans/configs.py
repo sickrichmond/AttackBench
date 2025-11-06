@@ -10,7 +10,7 @@ from cleverhans.torch.attacks.spsa import spsa
 from .wrapper import cleverhans_minimal_wrapper, cleverhans_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
-_prefix = 'ch'
+_prefix = 'cleverhans'
 _wrapper = cleverhans_wrapper
 _norms = {
     'l0': 0,

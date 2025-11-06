@@ -13,7 +13,8 @@ from .. import minimal_init_eps, minimal_search_steps
 _prefix = 'original'
 
 
-def _wrapper(attack, **kwargs): return attack(**kwargs)
+def _wrapper(attack, **kwargs): 
+    return attack(**kwargs)
 
 
 def original_apgd():

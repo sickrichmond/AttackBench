@@ -1,8 +1,8 @@
-from attack_evaluation.run import run_attack
+from attack_evaluation.run import run_attack, get_stats  # NUOVO: get_stats
 from attack_evaluation.custom_components import create_custom_attack
 
-# Helpers to load objects
-from attack_evaluation.attacks.ingredient import get_attack
+# Import con nuova signature
+from attack_evaluation.attacks.ingredient import get_attack  # DIRETTO
 from attack_evaluation.datasets.ingredient import get_loader  
 from attack_evaluation.models.ingredient import get_model
 
@@ -20,12 +20,13 @@ except ImportError:
 
 __all__ = [
     'run_attack',
-
+    'get_stats',  # NUOVO
+    
     # Helpers to load objects
     'load_model',
     'get_model',
-    'get_loader',
-    'get_attack',
+    'get_loader', 
+    'get_attack',  # SEMPLIFICATO
     
     # Custom components
     'create_custom_attack',
