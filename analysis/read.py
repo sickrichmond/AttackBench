@@ -6,6 +6,11 @@ from typing import Mapping, Tuple, Union
 import numpy as np
 
 from utils import Scenario, get_model_key
+import sys
+from pathlib import Path
+# Add parent dir to path to allow importing from attackbench package
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from attackbench.wandb_utils import get_precompiled_distances
 
 
 def read_distances(info_file: Union[Path, str],
@@ -94,3 +99,26 @@ def read_info(info_file: Union[Path, str],
     # store results
     scenario = Scenario(dataset=dataset, batch_size=batch_size, threat_model=threat_model, model=model)
     return scenario, info
+
+def load_best_distances(scenario, result_path):
+    """
+    Helper to load best distances using W&B utils (handles cache/download).
+    """
+    # Try to download/load from cache
+    data = get_precompiled_distances(
+        dataset=scenario.dataset,
+        threat_model=scenario.threat_model,
+        model_name=scenario.model,
+        batch_size=scenario.batch_size,
+        cache_dir=result_path # Use results folder as cache
+    )
+
+    # Fallback for local legacy files not on W&B
+    if data is None:
+        local_file = result_path / f'{scenario.dataset}-{scenario.threat_model}-{scenario.model}-{scenario.batch_size}.json'
+        if local_file.exists():
+            with open(local_file, 'r') as f:
+                return json.load(f)
+        return {}
+
+    return data

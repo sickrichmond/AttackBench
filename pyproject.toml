@@ -26,6 +26,7 @@ dependencies = [
     "numpy>=1.21.0,<1.25.0", 
     "tqdm==4.56.2",
     "wget==3.2",
+    "wandb>=0.15.0",
 ]
 
 [project.optional-dependencies]
