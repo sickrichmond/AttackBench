@@ -1,4 +1,7 @@
-from attack_evaluation.run import run_attack, get_stats  # NUOVO: get_stats
+from attack_evaluation.run import run_attack, get_stats  # Import from run.py
+# OR if you prefer from metrics package:
+# from attack_evaluation.metrics.analysis import get_stats
+
 from attack_evaluation.custom_components import create_custom_attack
 
 # Import con nuova signature

@@ -4,7 +4,7 @@ import random
 import traceback
 import warnings
 from collections import defaultdict
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Union, Any
 
 import numpy as np
 import torch
@@ -14,6 +14,146 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .models.benchmodel_wrapper import BenchModel
+
+
+def run_attack(
+    model: nn.Module,
+    dataset: DataLoader,
+    attack: Callable,
+    threat_model: str,
+    device: Optional[torch.device] = None,
+    save_results: bool = False,
+    save_adversarial: bool = False,
+    output_dir: Optional[str] = None,
+    seed: int = 42,
+    debug: bool = False,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Execute an adversarial attack and return ONLY RAW results.
+    
+    NO STATISTICS COMPUTED HERE - use attackbench.get_stats() for analysis.
+    
+    Returns:
+        Dict with ONLY raw attack data:
+        - distances: Dict[str, List[float]]
+        - best_optim_distances: Dict[str, List[float]] 
+        - adv_success: List[bool]
+        - ori_success: List[bool]
+        - original_predictions: List[int]
+        - adversarial_predictions: List[int]
+        - num_forwards: List[int]
+        - num_backwards: List[int]
+        - times: List[float]
+        - hashes: List[str]
+        - box_failures: List[bool]
+        - batch_failures: List[bool]
+        - targeted: bool
+        - adv_inputs: Optional[Tensor] (if save_adversarial=True)
+    """
+    
+    # ...existing validation code...
+    
+    # Run attack implementation
+    raw_data = _run_attack_impl(
+        model=model,
+        loader=dataset,
+        attack=attack,
+        metrics=METRICS,
+        threat_model=threat_model,
+        return_adv=save_adversarial,
+        debug=debug,
+        **kwargs
+    )
+    
+    # RIMUOVI TUTTE LE STATISTICHE - mantieni solo dati grezzi
+    clean_data = {
+        'distances': raw_data['distances'],
+        'best_optim_distances': raw_data.get('best_optim_distances', {}),
+        'adv_success': raw_data['adv_success'],
+        'ori_success': raw_data['ori_success'],
+        'original_predictions': raw_data.get('original_predictions', []),
+        'adversarial_predictions': raw_data.get('adversarial_predictions', []),
+        'num_forwards': raw_data['num_forwards'],
+        'num_backwards': raw_data['num_backwards'],
+        'times': raw_data['times'],
+        'hashes': raw_data['hashes'],
+        'box_failures': raw_data['box_failures'],
+        'batch_failures': raw_data['batch_failures'],
+        'targeted': raw_data.get('targeted', False),
+    }
+    
+    # Add adversarial inputs if requested
+    if save_adversarial and 'adv_inputs' in raw_data:
+        clean_data['adv_inputs'] = raw_data['adv_inputs']
+        clean_data['inputs'] = raw_data['inputs']
+    
+    # Save raw results if requested
+    if save_results or save_adversarial:
+        _save_raw_results(clean_data, output_dir, save_adversarial)
+    
+    return clean_data  # SOLO DATI GREZZI
+
+
+def set_seed(seed: int = None) -> None:
+    """
+    Set random seed for PyTorch, NumPy, and Python random module.
+    
+    See https://pytorch.org/docs/stable/notes/randomness.html for further details.
+    
+    Args:
+        seed: Random seed value (None to skip seeding)
+    """
+    if seed is None:
+        return
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def _call_attack_with_kwargs(attack, model, inputs, labels, targeted, targets, **kwargs):
+    """
+    Call the attack function filtering kwargs based on its signature.
+    
+    This function inspects the attack's signature and only passes parameters
+    that the function can accept, avoiding TypeError from unexpected kwargs.
+    
+    Args:
+        attack: Attack function to call
+        model: Model to attack
+        inputs: Input tensors
+        labels: True labels
+        targeted: Whether attack is targeted
+        targets: Target labels (for targeted attacks)
+        **kwargs: Additional arguments to filter and pass
+        
+    Returns:
+        Adversarial examples from the attack
+    """
+    
+    # Get the attack's signature
+    sig = inspect.signature(attack)
+    
+    # Base parameters always present
+    attack_params = {
+        'model': model,
+        'inputs': inputs,
+        'labels': labels,
+    }
+    
+    # Add optional parameters if accepted
+    if 'targeted' in sig.parameters:
+        attack_params['targeted'] = targeted
+    if 'targets' in sig.parameters:
+        attack_params['targets'] = targets
+    
+    # Filter kwargs to include only those accepted
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            attack_params[key] = value
+    
+    return attack(**attack_params)
 
 
 def run_attack(model: BenchModel,

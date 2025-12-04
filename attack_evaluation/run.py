@@ -45,11 +45,27 @@ def run_attack(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Execute an adversarial attack and return basic results.
-    SIMPLIFIED VERSION - no complex analysis here.
+    Execute an adversarial attack and return ONLY RAW results.
+    
+    This function is now MINIMAL - NO statistics computed here.
+    For ALL analysis, use attackbench.get_stats() afterwards.
     
     Returns:
-        Dict with basic attack results (ASR, accuracy, distances, timing)
+        Dict with ONLY RAW attack data:
+        - distances: Dict[str, List[float]] (per-sample distances for each norm)
+        - best_optim_distances: Dict[str, List[float]] (optimal distances if tracked)
+        - adv_success: List[bool] (per-sample attack success)
+        - ori_success: List[bool] (per-sample original success)
+        - original_predictions: List[int] (original model predictions)  
+        - adversarial_predictions: List[int] (adversarial predictions)
+        - num_forwards: List[int] (forward queries per sample)
+        - num_backwards: List[int] (backward queries per sample)
+        - times: List[float] (time per batch)
+        - hashes: List[str] (sample identification)
+        - box_failures: List[bool] (constraint violations)
+        - batch_failures: List[bool] (batch processing failures)
+        - targeted: bool (attack type)
+        - adv_inputs: Optional[Tensor] (if save_adversarial=True)
     """
     
     # Input validation
@@ -82,28 +98,48 @@ def run_attack(
     if len(dataset) == 0:
         raise ValueError("Dataset is empty - no inputs to attack")
     
-    # Run attack - simplified (ONLY basic results)
-    attack_data = _run_attack_impl(
+    # Run attack - SOLO dati grezzi
+    raw_data = _run_attack_impl(
         model=model,
         loader=dataset,
         attack=attack,
-        metrics=METRICS,
+        metrics=METRICS,  # Solo calcolo distanze base
         threat_model=threat_model,
         return_adv=save_adversarial,
         debug=debug,
         **kwargs
     )
     
-    # Save results if requested
-    if save_results or save_adversarial:
-        _save_results(attack_data, model, dataset, attack, threat_model, 
-                     output_dir, save_adversarial)
+    # RIMUOVI tutte le statistiche elaborate da raw_data
+    clean_data = {
+        # SOLO dati grezzi - nessuna statistica
+        'distances': raw_data['distances'],
+        'best_optim_distances': raw_data['best_optim_distances'], 
+        'adv_success': raw_data['adv_success'],
+        'ori_success': raw_data['ori_success'],
+        'num_forwards': raw_data['num_forwards'],
+        'num_backwards': raw_data['num_backwards'],
+        'times': raw_data['times'],
+        'hashes': raw_data['hashes'],
+        'box_failures': raw_data['box_failures'],
+        'batch_failures': raw_data['batch_failures'],
+        'targeted': raw_data['targeted'],
+    }
     
-    return attack_data
+    # Add adversarial inputs if requested
+    if save_adversarial and 'adv_inputs' in raw_data:
+        clean_data['adv_inputs'] = raw_data['adv_inputs']
+        clean_data['inputs'] = raw_data['inputs']
+    
+    # Save raw results if requested
+    if save_results or save_adversarial:
+        _save_raw_results(clean_data, output_dir, save_adversarial)
+    
+    return clean_data  # SOLO DATI GREZZI - zero statistiche
 
 
-def _save_results(attack_data, model, dataset, attack, threat_model, output_dir, save_adversarial):
-    """Save results to files - simplified version"""
+def _save_raw_results(attack_data, output_dir, save_adversarial):
+    """Save raw results to files - semplificata"""
     if output_dir is None:
         return
         
@@ -133,96 +169,108 @@ def _save_results(attack_data, model, dataset, attack, threat_model, output_dir,
 def get_stats(
     attack_results: Dict[str, Any], 
     threat_model: str,
+    # NEW PARAMETERS for granular control
+    include_optimality: bool = True,
+    include_curves: bool = True, 
+    include_certified: bool = True,
     certified_thresholds: Optional[List[float]] = None,
-    save_precompiled_distances: bool = False,
-    output_dir: Optional[str] = None
+    include_efficiency: bool = False,
+    save_precompiled: bool = False,
+    output_dir: Optional[str] = None,
+    **analysis_kwargs
 ) -> Dict[str, Any]:
     """
-    Compute advanced statistics and analysis on attack results.
-    SEPARATED from run_attack for modularity.
+    Compute comprehensive statistics from RAW attack results.
+    
+    NOW COMPUTES ALL STATISTICS including basic ones like ASR and accuracy.
     
     Args:
-        attack_results: Results from run_attack()
+        attack_results: RAW results from run_attack()
         threat_model: Threat model used
-        certified_thresholds: Thresholds for robust accuracy
-        save_precompiled_distances: Whether to save distances
-        output_dir: Output directory for saved files
+        include_optimality: Compute optimality scores
+        include_curves: Compute robust accuracy curves
+        include_certified: Compute certified robustness metrics
+        include_efficiency: Compute query efficiency metrics
+        save_precompiled: Save precompiled distances
+        **analysis_kwargs: Additional arguments for specific analyses
         
     Returns:
-        Dict with advanced statistics (optimality, curves, etc.)
+        Dict with comprehensive analysis results
     """
     
-    analysis = {}
+    stats = {}
     
-    # 1. Basic distance statistics
+    # 0. BASIC METRICS (now computed here instead of run_attack)
+    adv_success = attack_results.get('adv_success', [])
+    ori_success = attack_results.get('ori_success', [])
+    
+    if adv_success:
+        stats['ASR'] = sum(adv_success) / len(adv_success)  # Attack Success Rate
+        
+    if ori_success:
+        stats['accuracy'] = sum(ori_success) / len(ori_success)  # Model accuracy
+    
+    # 1. SEMPRE: Statistiche delle distanze  
     distances = attack_results.get('distances', {})
-    
     for norm, dist_values in distances.items():
-        dist_array = np.array(dist_values)
-        
-        # Descriptive statistics
-        analysis[f'{norm}_mean_distance'] = float(np.mean(dist_array))
-        analysis[f'{norm}_median_distance'] = float(np.median(dist_array))
-        analysis[f'{norm}_std_distance'] = float(np.std(dist_array))
-        analysis[f'{norm}_min_distance'] = float(np.min(dist_array))
-        analysis[f'{norm}_max_distance'] = float(np.max(dist_array))
-        
-        # Percentiles
-        analysis[f'{norm}_p25_distance'] = float(np.percentile(dist_array, 25))
-        analysis[f'{norm}_p75_distance'] = float(np.percentile(dist_array, 75))
-        analysis[f'{norm}_p95_distance'] = float(np.percentile(dist_array, 95))
-        
-        # Distances only for successful adversarial examples
-        adv_success = np.array(attack_results.get('adv_success', []))
-        if adv_success.any():
-            successful_distances = dist_array[adv_success]
-            if len(successful_distances) > 0:
-                analysis[f'{norm}_successful_mean_distance'] = float(np.mean(successful_distances))
-                analysis[f'{norm}_successful_median_distance'] = float(np.median(successful_distances))
+        if dist_values:
+            from attack_evaluation.metrics.distances import compute_distance_statistics
+            dist_stats = compute_distance_statistics(dist_values)
+            # Aggiungi prefisso norm a tutte le chiavi
+            for key, value in dist_stats.items():
+                stats[f'{norm}_{key}'] = value
     
-    # 2. Optimality computation
-    if threat_model in distances and threat_model in attack_results.get('best_optim_distances', {}):
-        main_distances = np.array(distances[threat_model])
-        best_distances = np.array(attack_results['best_optim_distances'][threat_model])
-        
-        try:
-            from analysis.utils import eval_optimality
-            optimality = eval_optimality(main_distances, best_distances)
-            analysis['optimality'] = float(optimality)
-        except ImportError:
-            print("Warning: Cannot import eval_optimality from analysis.utils")
-            analysis['optimality'] = None
+    # 2. OPZIONALE: Calcolo ottimalità  
+    if include_optimality and threat_model in distances:
+        best_distances = attack_results.get('best_optim_distances', {}).get(threat_model, [])
+        if best_distances:
+            from attack_evaluation.metrics.distances import compute_optimality_score
+            optimality = compute_optimality_score(distances[threat_model], best_distances)
+            stats['optimality'] = optimality
     
-    # 3. Security evaluation curves
-    if threat_model in distances:
+    # 3. OPZIONALE: Curve di robust accuracy
+    if include_curves and threat_model in distances:
         distances_array = np.array(distances[threat_model])
-        success_mask = np.array(attack_results.get('adv_success', []))
+        success_mask = np.array(adv_success)
         
-        # Robust accuracy curve
-        curve_data = _compute_robust_accuracy_curve_fallback(distances_array, success_mask)
-        analysis['robust_accuracy_curve'] = curve_data
+        from attack_evaluation.metrics.curves import compute_robust_accuracy_curve
+        curve_data = compute_robust_accuracy_curve(distances_array, success_mask)
+        stats['robust_accuracy_curve'] = curve_data
         
-        # Certified robustness metrics
-        if certified_thresholds is None:
-            if threat_model == 'linf':
-                certified_thresholds = [4/255, 8/255, 16/255]
-            elif threat_model == 'l2':
-                certified_thresholds = [0.5, 1.0, 2.0]
-            else:
-                certified_thresholds = []
+        # AUC della curva
+        if curve_data['thresholds']:
+            from attack_evaluation.metrics.curves import compute_auc_robust_accuracy
+            auc = compute_auc_robust_accuracy(curve_data['thresholds'], curve_data['robust_accuracies'])
+            stats['robust_accuracy_auc'] = auc
+    
+    # 4. OPZIONALE: Metriche certificate
+    if include_certified and threat_model in distances:
+        distances_array = np.array(distances[threat_model])
+        success_mask = np.array(adv_success)
         
-        if certified_thresholds:
-            cert_metrics = _compute_certified_robustness_metrics(
-                distances_array, success_mask, certified_thresholds
+        from attack_evaluation.metrics.curves import compute_certified_robustness_metrics
+        cert_metrics = compute_certified_robustness_metrics(
+            distances_array, success_mask, threat_model, certified_thresholds
+        )
+        stats.update(cert_metrics)
+    
+    # 5. OPZIONALE: Efficienza query
+    if include_efficiency:
+        num_forwards = attack_results.get('num_forwards', [])
+        if num_forwards and threat_model in distances:
+            from attack_evaluation.metrics.distances import compute_attack_efficiency
+            efficiency_metrics = compute_attack_efficiency(
+                distances[threat_model], num_forwards
             )
-            analysis.update(cert_metrics)
+            stats.update(efficiency_metrics)
     
-    # 4. Precompiled distances
-    if save_precompiled_distances and output_dir:
-        precompiled_path = _save_precompiled_distances_fallback(attack_results, threat_model, output_dir)
-        analysis['precompiled_distances_path'] = precompiled_path
+    # 6. OPZIONALE: Salvataggio precompilato
+    if save_precompiled and output_dir:
+        from attack_evaluation.metrics.storage import save_precompiled_distances
+        saved_path = save_precompiled_distances(attack_results, threat_model, output_dir)
+        stats['precompiled_path'] = saved_path
     
-    return analysis
+    return stats
 
 
 def _compute_robust_accuracy_curve_fallback(distances: np.ndarray, success_mask: np.ndarray) -> Dict[str, List[float]]:
