@@ -21,6 +21,14 @@ try:
 except ImportError:
     analysis_available = False
 
+# W&B integration for precompiled distances
+from .wandb_manager import (
+    upload_precompiled_distances,
+    download_precompiled_distances, 
+    upload_directory,
+    list_available_distances
+)
+
 __all__ = [
     'run_attack',
     'get_stats',  # NUOVO
@@ -33,6 +41,12 @@ __all__ = [
     
     # Custom components
     'create_custom_attack',
+    
+    # W&B functions
+    'upload_precompiled_distances',
+    'download_precompiled_distances',
+    'upload_directory', 
+    'list_available_distances'
 ]
 
 if analysis_available:

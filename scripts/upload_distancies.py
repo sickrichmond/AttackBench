@@ -1,52 +1,34 @@
+"""
+Legacy upload script - now uses the new wandb_manager.
+Maintained for backward compatibility.
+"""
 import argparse
-import wandb
 from pathlib import Path
+import sys
 
-# Configuration
-ENTITY = "attackbench"
-PROJECT = "attackbench-precompiled-distancies"
+# Add project root to path to import wandb_manager
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from attackbench.wandb_manager import upload_directory
 
 def upload_all_compiled(results_dir):
-    results_path = Path(results_dir)
+    """
+    Legacy function - now delegates to new wandb_manager.
+    """
+    print(f"Using new W&B manager to upload from: {results_dir}")
     
-    # Iterate over all JSON files in the directory
-    for file_path in results_path.glob("*.json"):
-        # Heuristic check to skip unrelated JSONs
-        if file_path.name.count("-") < 3:
-            continue
-
-        print(f"Processing: {file_path.name}")
-        
-        # Parse metadata from filename: dataset-threat-model-batch.json
-        try:
-            parts = file_path.stem.split("-")
-            dataset = parts[0]
-            threat_model = parts[1]
-            batch_size = parts[-1]
-            # Reconstruct model name (handles cases with hyphens)
-            model_name = "-".join(parts[2:-1]) 
-            
-            artifact_name = file_path.stem
-            
-            # Initialize run for upload
-            with wandb.init(project=PROJECT, entity=ENTITY, job_type="upload-reference") as run:
-                artifact = wandb.Artifact(
-                    name=artifact_name,
-                    type="reference_distances",
-                    metadata={
-                        "dataset": dataset,
-                        "model": model_name,
-                        "threat_model": threat_model,
-                        "batch_size": batch_size
-                    }
-                )
-                artifact.add_file(str(file_path))
-                run.log_artifact(artifact)
-                
-            print(f"Successfully uploaded: {artifact_name}")
-            
-        except Exception as e:
-            print(f"Failed to upload {file_path.name}: {e}")
+    results = upload_directory(
+        directory=results_dir,
+        dataset=None,  # Upload all datasets
+        overwrite=False
+    )
+    
+    successful = sum(results.values())
+    total = len(results)
+    
+    print(f"Legacy upload completed: {successful}/{total} files uploaded")
+    return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload compiled distances to W&B")

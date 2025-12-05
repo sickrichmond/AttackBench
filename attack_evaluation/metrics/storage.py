@@ -1,11 +1,11 @@
 """
 Storage utilities with W&B integration for precompiled distances.
-Enhanced with analysis/read.py logic
+Now uses the new wandb_manager module.
 """
 import json
 import pickle
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 import numpy as np
 import torch
 
@@ -93,12 +93,13 @@ def load_precompiled_distances(file_path: str) -> Optional[Dict[str, Any]]:
 def load_best_distances_with_wandb(dataset: str, threat_model: str, model_name: str, 
                                   batch_size: int, cache_dir: str) -> Dict[str, Any]:
     """
-    Load best distances using W&B utils. Ported from analysis/read.py
+    Load best distances using new W&B manager.
     """
     try:
-        from attackbench.wandb_utils import get_precompiled_distances
+        # Use the new modular function
+        from attackbench.wandb_manager import download_precompiled_distances
         
-        data = get_precompiled_distances(
+        data = download_precompiled_distances(
             dataset=dataset,
             threat_model=threat_model,
             model_name=model_name,
@@ -106,14 +107,15 @@ def load_best_distances_with_wandb(dataset: str, threat_model: str, model_name: 
             cache_dir=cache_dir
         )
         
-        if data:
-            return data
+        return data or {}
+        
     except ImportError:
-        print("W&B utils not available, trying local fallback")
-    
-    # Fallback to local file
-    local_file = Path(cache_dir) / f'{dataset}-{threat_model}-{model_name}-{batch_size}.json'
-    if local_file.exists():
-        return load_precompiled_distances(str(local_file)) or {}
+        print("W&B manager not available, trying legacy fallback")
+        # Fallback al vecchio sistema se necessario
+        try:
+            from attackbench.wandb_utils import get_precompiled_distances
+            return get_precompiled_distances(dataset, threat_model, model_name, batch_size, cache_dir) or {}
+        except ImportError:
+            print("No W&B integration available")
     
     return {}

@@ -1,0 +1,378 @@
+"""
+AttackBench W&B Manager - User-friendly API for precompiled distances.
+
+Provides simple upload/download functions for managing precompiled attack distances.
+"""
+import json
+import wandb
+from pathlib import Path
+from typing import Dict, Any, Optional, List, Union
+
+# Configuration constants
+WANDB_ENTITY = "attackbench"
+WANDB_PROJECT = "attackbench-precompiled-distancies"
+
+def upload_precompiled_distances(
+    file_path: Union[str, Path],
+    dataset: str,
+    threat_model: str, 
+    model_name: str,
+    batch_size: int,
+    overwrite: bool = False
+) -> bool:
+    """
+    Upload precompiled distances to W&B.
+    
+    Args:
+        file_path: Path to JSON file containing precompiled distances
+        dataset: Dataset name (e.g., 'cifar10')
+        threat_model: Threat model (e.g., 'linf', 'l2')
+        model_name: Model name (e.g., 'standard', 'Carmon2019Unlabeled')
+        batch_size: Batch size used for the distances
+        overwrite: Whether to overwrite existing artifacts
+        
+    Returns:
+        True if upload successful, False otherwise
+        
+    Example:
+        >>> success = upload_precompiled_distances(
+        ...     'distances.json', 'cifar10', 'linf', 'standard', 1000
+        ... )
+        >>> print(f"Upload {'successful' if success else 'failed'}")
+    """
+    
+    file_path = Path(file_path)
+    if not file_path.exists():
+        print(f"Error: File not found: {file_path}")
+        return False
+    
+    # Validate file format
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            print(f"Error: File must contain a JSON object")
+            return False
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON file: {e}")
+        return False
+    
+    # Create artifact name following convention
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{batch_size}"
+    
+    print(f"Uploading to W&B: {artifact_name}")
+    print(f"   File: {file_path}")
+    print(f"   Size: {file_path.stat().st_size / 1024:.1f} KB")
+    
+    try:
+        # Check if artifact already exists
+        if not overwrite:
+            api = wandb.Api()
+            try:
+                existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
+                print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
+                return False
+            except:
+                pass  # Artifact doesn't exist, continue
+        
+        # Upload to W&B
+        with wandb.init(project=WANDB_PROJECT, entity=WANDB_ENTITY, job_type="upload-distances") as run:
+            artifact = wandb.Artifact(
+                name=artifact_name,
+                type="precompiled_distances",
+                description=f"Precompiled distances for {model_name} on {dataset} ({threat_model})",
+                metadata={
+                    "dataset": dataset,
+                    "model": model_name,
+                    "threat_model": threat_model,
+                    "batch_size": str(batch_size),
+                    "file_size": file_path.stat().st_size,
+                    "num_samples": len(data)
+                }
+            )
+            artifact.add_file(str(file_path))
+            run.log_artifact(artifact)
+        
+        print(f"Successfully uploaded: {artifact_name}")
+        return True
+        
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        return False
+
+def download_precompiled_distances(
+    dataset: str,
+    threat_model: str,
+    model_name: str, 
+    batch_size: int,
+    cache_dir: str = "./cache",
+    force_download: bool = False
+) -> Optional[Dict[str, Any]]:
+    """
+    Download precompiled distances from W&B.
+    
+    Args:
+        dataset: Dataset name (e.g., 'cifar10')
+        threat_model: Threat model (e.g., 'linf', 'l2')
+        model_name: Model name (e.g., 'standard', 'Carmon2019Unlabeled')
+        batch_size: Batch size used for the distances
+        cache_dir: Local cache directory
+        force_download: Force re-download even if cached
+        
+    Returns:
+        Dictionary with precompiled distances, or None if not found
+        
+    Example:
+        >>> distances = download_precompiled_distances(
+        ...     'cifar10', 'linf', 'standard', 1000
+        ... )
+        >>> if distances:
+        ...     print(f"Downloaded {len(distances)} distances")
+    """
+    
+    # Create artifact name following convention
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{batch_size}"
+    file_name = f"{artifact_name}.json"
+    
+    cache_path = Path(cache_dir) / dataset
+    cache_path.mkdir(parents=True, exist_ok=True)
+    local_file = cache_path / file_name
+    
+    # 1. Check local cache first (unless forced)
+    if not force_download and local_file.exists():
+        try:
+            print(f"Loading from cache: {local_file}")
+            with open(local_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"Warning: Corrupted cache file, re-downloading...")
+    
+    # 2. Download from W&B
+    print(f"Downloading from W&B: {artifact_name}")
+    
+    try:
+        api = wandb.Api()
+        artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
+        
+        print(f"   Found artifact: {artifact.name} (v{artifact.version})")
+        print(f"   Size: {artifact.size / 1024:.1f} KB")
+        print(f"   Samples: {artifact.metadata.get('num_samples', 'Unknown')}")
+        
+        # Download to cache
+        download_path = artifact.download(root=str(cache_path))
+        
+        # Find the JSON file
+        downloaded_file = Path(download_path) / file_name
+        if not downloaded_file.exists():
+            # Fallback: look for any JSON file
+            json_files = list(Path(download_path).glob("*.json"))
+            downloaded_file = json_files[0] if json_files else None
+        
+        if not downloaded_file or not downloaded_file.exists():
+            print(f"Error: No JSON file found in downloaded artifact")
+            return None
+        
+        # Load and return data
+        with open(downloaded_file, 'r') as f:
+            data = json.load(f)
+        
+        print(f"Successfully downloaded {len(data)} distances to: {cache_path}")
+        return data
+        
+    except wandb.errors.CommError:
+        print(f"Error: Artifact not found: {artifact_name}")
+        print(f"   Available models for {dataset}-{threat_model}: ")
+        try:
+            api = wandb.Api()
+            artifacts = api.artifacts(f"{WANDB_ENTITY}/{WANDB_PROJECT}", per_page=50)
+            available = [a.name for a in artifacts if a.name.startswith(f"{dataset}-{threat_model}")]
+            for name in sorted(set(available))[:5]:  # Show first 5
+                print(f"     - {name}")
+        except:
+            print(f"     Could not list available artifacts")
+        return None
+    except Exception as e:
+        print(f"Download failed: {e}")
+        return None
+
+def upload_directory(
+    directory: Union[str, Path],
+    dataset: str = None,
+    overwrite: bool = False
+) -> Dict[str, bool]:
+    """
+    Upload all JSON files in a directory to W&B.
+    Auto-detects metadata from filename: dataset-threat-model-batch.json
+    
+    Args:
+        directory: Directory containing JSON files
+        dataset: Filter to specific dataset (None for all)
+        overwrite: Whether to overwrite existing artifacts
+        
+    Returns:
+        Dictionary mapping filename to upload success status
+        
+    Example:
+        >>> results = upload_directory('./compiled', dataset='cifar10')
+        >>> successful = sum(results.values())
+        >>> print(f"Uploaded {successful}/{len(results)} files")
+    """
+    
+    directory = Path(directory)
+    if not directory.exists():
+        print(f"Error: Directory not found: {directory}")
+        return {}
+    
+    results = {}
+    json_files = list(directory.glob("*.json"))
+    
+    if not json_files:
+        print(f"Error: No JSON files found in {directory}")
+        return {}
+    
+    print(f"Found {len(json_files)} JSON files in {directory}")
+    
+    for file_path in json_files:
+        # Skip files that don't match the expected pattern
+        if file_path.name.count("-") < 3:
+            print(f"Skipping {file_path.name} (invalid format)")
+            continue
+        
+        try:
+            # Parse metadata from filename: dataset-threat-model-batch.json
+            parts = file_path.stem.split("-")
+            file_dataset = parts[0]
+            file_threat_model = parts[1]
+            file_batch_size = int(parts[-1])
+            file_model_name = "-".join(parts[2:-1])
+            
+            # Filter by dataset if specified
+            if dataset and file_dataset != dataset:
+                print(f"Skipping {file_path.name} (dataset mismatch)")
+                continue
+            
+            print(f"\nProcessing: {file_path.name}")
+            success = upload_precompiled_distances(
+                file_path, file_dataset, file_threat_model, 
+                file_model_name, file_batch_size, overwrite
+            )
+            results[file_path.name] = success
+            
+        except (ValueError, IndexError) as e:
+            print(f"Error: Invalid filename format: {file_path.name}")
+            results[file_path.name] = False
+    
+    # Summary
+    successful = sum(results.values())
+    total = len(results)
+    print(f"\nSUMMARY: {successful}/{total} files uploaded successfully")
+    
+    if successful < total:
+        failed = [name for name, success in results.items() if not success]
+        print(f"Failed uploads: {failed}")
+    
+    return results
+
+def list_available_distances(dataset: str = None) -> List[Dict[str, Any]]:
+    """
+    List all available precompiled distances on W&B.
+    
+    Args:
+        dataset: Filter to specific dataset (None for all)
+        
+    Returns:
+        List of dictionaries with artifact metadata
+        
+    Example:
+        >>> artifacts = list_available_distances('cifar10')
+        >>> for art in artifacts:
+        ...     print(f"{art['model']} - {art['threat_model']}")
+    """
+    
+    try:
+        api = wandb.Api()
+        artifacts = api.artifacts(f"{WANDB_ENTITY}/{WANDB_PROJECT}", per_page=100)
+        
+        results = []
+        for artifact in artifacts:
+            metadata = artifact.metadata or {}
+            
+            # Filter by dataset if specified
+            if dataset and metadata.get('dataset') != dataset:
+                continue
+            
+            results.append({
+                'name': artifact.name,
+                'dataset': metadata.get('dataset', 'unknown'),
+                'model': metadata.get('model', 'unknown'),
+                'threat_model': metadata.get('threat_model', 'unknown'),
+                'batch_size': metadata.get('batch_size', 'unknown'),
+                'num_samples': metadata.get('num_samples', 'unknown'),
+                'size_kb': artifact.size / 1024 if artifact.size else 0,
+                'version': artifact.version,
+                'created_at': artifact.created_at
+            })
+        
+        return sorted(results, key=lambda x: (x['dataset'], x['threat_model'], x['model']))
+        
+    except Exception as e:
+        print(f"Failed to list artifacts: {e}")
+        return []
+
+# Mantieni compatibilità con il codice esistente
+get_precompiled_distances = download_precompiled_distances
+
+# CLI se eseguito direttamente
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="AttackBench W&B Manager")
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    
+    # Upload command
+    upload_parser = subparsers.add_parser('upload', help='Upload distances')
+    upload_parser.add_argument('file', help='JSON file to upload')
+    upload_parser.add_argument('--dataset', required=True)
+    upload_parser.add_argument('--threat-model', required=True) 
+    upload_parser.add_argument('--model', required=True)
+    upload_parser.add_argument('--batch-size', type=int, required=True)
+    upload_parser.add_argument('--overwrite', action='store_true')
+    
+    # Upload directory command
+    upload_dir_parser = subparsers.add_parser('upload-dir', help='Upload directory')
+    upload_dir_parser.add_argument('directory', help='Directory containing JSON files')
+    upload_dir_parser.add_argument('--dataset', help='Filter by dataset')
+    upload_dir_parser.add_argument('--overwrite', action='store_true')
+    
+    # Download command
+    download_parser = subparsers.add_parser('download', help='Download distances')
+    download_parser.add_argument('--dataset', required=True)
+    download_parser.add_argument('--threat-model', required=True)
+    download_parser.add_argument('--model', required=True) 
+    download_parser.add_argument('--batch-size', type=int, required=True)
+    download_parser.add_argument('--cache-dir', default='./cache')
+    
+    # List command
+    list_parser = subparsers.add_parser('list', help='List available distances')
+    list_parser.add_argument('--dataset', help='Filter by dataset')
+    
+    args = parser.parse_args()
+    
+    if args.command == 'upload':
+        upload_precompiled_distances(
+            args.file, args.dataset, args.threat_model, 
+            args.model, args.batch_size, args.overwrite
+        )
+    elif args.command == 'upload-dir':
+        upload_directory(args.directory, args.dataset, args.overwrite)
+    elif args.command == 'download':
+        data = download_precompiled_distances(
+            args.dataset, args.threat_model, args.model, 
+            args.batch_size, args.cache_dir
+        )
+        if data:
+            print(f"Downloaded {len(data)} distances")
+    elif args.command == 'list':
+        artifacts = list_available_distances(args.dataset)
+        for art in artifacts:
+            print(f"{art['dataset']}-{art['threat_model']}-{art['model']}-{art['batch_size']} (v{art['version']})")
