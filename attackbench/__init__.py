@@ -29,6 +29,9 @@ from .wandb_manager import (
     list_available_distances
 )
 
+# W&B utils for database reading
+from .wandb_utils import get_precompiled_distances
+
 __all__ = [
     'run_attack',
     'get_stats',  # NUOVO
@@ -46,7 +49,8 @@ __all__ = [
     'upload_precompiled_distances',
     'download_precompiled_distances',
     'upload_directory', 
-    'list_available_distances'
+    'list_available_distances',
+    'get_precompiled_distances'
 ]
 
 if analysis_available:

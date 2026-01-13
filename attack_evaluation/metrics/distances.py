@@ -47,6 +47,12 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: List[float]) -> f
     if not best_distances:
         return float('nan')
     
+    # Convert to numpy array if it's a list
+    if isinstance(adv_distances, list):
+        adv_distances = np.array(adv_distances)
+    if isinstance(best_distances, list):
+        best_distances = np.array(best_distances)
+    
     # Compute robust accuracy curve for best distances
     distances, counts = np.unique(best_distances, return_counts=True)
     robust_acc = 1 - counts.cumsum() / len(best_distances)
@@ -114,3 +120,7 @@ def compute_attack_efficiency(distances: List[float], num_queries: List[int]) ->
         'avg_queries_success': float(avg_queries),
         'success_rate': float(success_rate)
     }
+
+
+# Alias for backward compatibility
+compute_optimality_score = eval_optimality

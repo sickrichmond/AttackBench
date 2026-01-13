@@ -78,11 +78,28 @@ class BenchModel(nn.Module):
 
         @wraps(func)
         def timeit_wrapper(self, *args, **kwargs):
-            torch.cuda.synchronize()
-            self._bench_start_event.record()
-            result = func(self, *args, **kwargs)
-            self._bench_end_event.record()
-            torch.cuda.synchronize()
+            # Fix 4: Device-specific CUDA synchronization per evitare RuntimeError
+            if hasattr(self, 'device') and self.device.type == 'cuda':
+                torch.cuda.synchronize(self.device)
+            else:
+                torch.cuda.synchronize()  # Fallback per compatibilità
+            
+            # Fix 5: Assicurati che gli eventi CUDA siano sul device corretto
+            if hasattr(self, 'device') and self.device.type == 'cuda':
+                with torch.cuda.device(self.device):
+                    self._bench_start_event.record()
+                    result = func(self, *args, **kwargs)
+                    self._bench_end_event.record()
+            else:
+                self._bench_start_event.record()
+                result = func(self, *args, **kwargs)
+                self._bench_end_event.record()
+            
+            if hasattr(self, 'device') and self.device.type == 'cuda':
+                torch.cuda.synchronize(self.device)
+            else:
+                torch.cuda.synchronize()
+                
             self._bench_time += self._bench_start_event.elapsed_time(self._bench_end_event) / 1000
             return result
 
@@ -116,6 +133,21 @@ class BenchModel(nn.Module):
                        tracking_threat_model: str, targets: Optional[Tensor] = None) -> None:
         assert len(inputs) == len(labels)
         if targets is not None: assert len(inputs) == len(targets)
+        
+        # Fix 3: Validazione input avanzata per tracking
+        if inputs.requires_grad:
+            warnings.warn('WARNING: Input tensor has requires_grad=True, this may cause issues in optimization tracking')
+        
+        if not inputs.is_contiguous():
+            warnings.warn('WARNING: Input tensor is not contiguous, making contiguous copy')
+            inputs = inputs.contiguous()
+        
+        if inputs.device != labels.device:
+            warnings.warn(f'WARNING: Device mismatch - inputs on {inputs.device}, labels on {labels.device}')
+        
+        if inputs.numel() == 0:
+            raise ValueError('Empty input tensor provided to start_tracking')
+        
         self.inputs = inputs
         self.labels = labels
         self.batch_size = len(inputs)
@@ -142,11 +174,12 @@ class BenchModel(nn.Module):
         for dists in self.min_dist.values():
             dists.masked_fill_(self.ori_success, 0)  # replace minimum distances with 0 for already adversarial inputs
 
-        # timing objects
-        self._attack_start_event = torch.cuda.Event(enable_timing=True)
-        self._attack_end_event = torch.cuda.Event(enable_timing=True)
-        self._bench_start_event = torch.cuda.Event(enable_timing=True)  # to account for BenchModel time spent tracking
-        self._bench_end_event = torch.cuda.Event(enable_timing=True)
+        # timing objects - create events on the correct device
+        with torch.cuda.device(self.device):
+            self._attack_start_event = torch.cuda.Event(enable_timing=True)
+            self._attack_end_event = torch.cuda.Event(enable_timing=True)
+            self._bench_start_event = torch.cuda.Event(enable_timing=True)  # to account for BenchModel time spent tracking
+            self._bench_end_event = torch.cuda.Event(enable_timing=True)
         self._benchmark_mode = True
         self._elapsed_time = None
         self._bench_time = 0
@@ -170,7 +203,21 @@ class BenchModel(nn.Module):
         if success.any():
             input = input.detach()
             distances = torch.full_like(self._indices, float('inf'), dtype=torch.float)
-            distances[success] = self.tracking_metric(self.inputs[self._indices][success], input[success], dim=1)
+            # Fix 2: Calcolo distanze con validazione dimensioni avanzata
+            success_inputs = input[success]
+            original_inputs = self.inputs[self._indices][success]
+            
+            # Validazione dimensioni critica con debug warnings
+            if success_inputs.shape != original_inputs.shape:
+                warnings.warn(f'CRITICAL: Dimension mismatch in distance calculation: success_inputs={success_inputs.shape}, original_inputs={original_inputs.shape}')
+                # Tentativo di correzione automatica
+                if success_inputs.dim() == original_inputs.dim() and success_inputs.size(0) != original_inputs.size(0):
+                    min_batch = min(success_inputs.size(0), original_inputs.size(0))
+                    success_inputs = success_inputs[:min_batch]
+                    original_inputs = original_inputs[:min_batch]
+                    warnings.warn(f'Auto-corrected batch size to {min_batch}')
+            
+            distances[success] = self.tracking_metric(original_inputs, success_inputs, dim=1)
             better_distance = distances < self.min_dist[self.tracking_threat_model][self._indices]
             success.logical_and_(better_distance)
 
@@ -184,9 +231,22 @@ class BenchModel(nn.Module):
                     indices_mask[best_distance_index] = False  # switch success to False for all but best input
                     success[indices_mask] = False
 
-                mask = torch.zeros_like(self.labels, dtype=torch.bool).index_fill_(dim=0, index=unique, value=True)
+                # Fix 6: Correzione calcolo distanze - mapping corretto unique/success 
+                # Il bug era che unique e success non hanno stessa lunghezza!
+                # Dobbiamo mappare correttamente input originali e avversariali
+                success_inputs = input[success]
+                success_indices = self._indices[success]
+                
                 for metric, metric_func in self.metrics.items():
-                    self.min_dist[metric][mask] = metric_func(self.inputs[mask], input[success], dim=1)
+                    # Per ogni indice unique, trova il corrispondente input avversariale
+                    for i, u in enumerate(unique):
+                        # Trova quale posizione in success_indices corrisponde a unique[i] 
+                        u_mask = success_indices == u
+                        if u_mask.any():
+                            # Calcola distanza tra input originale e avversariale corrispondente
+                            orig_input = self.inputs[u].unsqueeze(0)  # (1, ...)
+                            adv_input = success_inputs[u_mask][:1]    # Prendi il primo (1, ...)
+                            self.min_dist[metric][u] = metric_func(orig_input, adv_input, dim=1).item()
 
     def start_timing(self) -> None:
         self._attack_start_event.record()
