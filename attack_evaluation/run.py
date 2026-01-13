@@ -42,30 +42,50 @@ def run_attack(
     output_dir: Optional[str] = None,
     seed: int = 42,
     debug: bool = False,
+    include_metadata: bool = False,  # NEW: Control extra data
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Execute an adversarial attack and return ONLY RAW results.
+    Execute an adversarial attack and return ONLY ESSENTIAL RAW results.
     
-    This function is now MINIMAL - NO statistics computed here.
-    For ALL analysis, use attackbench.get_stats() afterwards.
+    This function is MINIMAL - returns only distances and success flags.
+    For ALL analysis and statistics, use attackbench.get_stats() afterwards.
+    
+    Args:
+        model: PyTorch model to attack
+        dataset: DataLoader with inputs to attack
+        attack: Attack function/callable
+        threat_model: Threat model ('linf', 'l2', 'l1', 'l0')
+        device: Device to run on (default: auto-detect)
+        save_results: Save results to disk
+        save_adversarial: Save adversarial examples
+        output_dir: Directory for saved results
+        seed: Random seed
+        debug: Debug mode
+        include_metadata: Include extra metadata (predictions, queries, times, hashes)
+        **kwargs: Additional arguments passed to attack
     
     Returns:
-        Dict with ONLY RAW attack data:
-        - distances: Dict[str, List[float]] (per-sample distances for each norm)
-        - best_optim_distances: Dict[str, List[float]] (optimal distances if tracked)
-        - adv_success: List[bool] (per-sample attack success)
-        - ori_success: List[bool] (per-sample original success)
-        - original_predictions: List[int] (original model predictions)  
-        - adversarial_predictions: List[int] (adversarial predictions)
-        - num_forwards: List[int] (forward queries per sample)
-        - num_backwards: List[int] (backward queries per sample)
-        - times: List[float] (time per batch)
-        - hashes: List[str] (sample identification)
-        - box_failures: List[bool] (constraint violations)
-        - batch_failures: List[bool] (batch processing failures)
-        - targeted: bool (attack type)
-        - adv_inputs: Optional[Tensor] (if save_adversarial=True)
+        Dict with MINIMAL RAW attack data:
+        - distances: Dict[str, List[float]] (adversarial distances per norm)
+        - best_optim_distances: Dict[str, List[float]] (optimal tracked distances)
+        - adv_success: List[bool] (attack success per sample - needed for ASR)
+        - ori_success: List[bool] (original correctness - needed for accuracy)
+        
+        If include_metadata=True, also includes:
+        - original_predictions: List[int]
+        - adversarial_predictions: List[int]
+        - num_forwards: List[int]
+        - num_backwards: List[int]
+        - times: List[float]
+        - hashes: List[str]
+        - box_failures: List[bool]
+        - batch_failures: List[bool]
+        - targeted: bool
+        
+        If save_adversarial=True, also includes:
+        - adv_inputs: Tensor (adversarial examples)
+        - inputs: Tensor (original inputs)
     """
     
     # Input validation
@@ -110,24 +130,29 @@ def run_attack(
         **kwargs
     )
     
-    # Return ONLY raw data - all statistics computed by metrics package
+    # Return ONLY essential raw data - all statistics computed by metrics package
     clean_data = {
-        # Raw attack data
+        # ALWAYS: Core attack data (needed by get_stats)
         'distances': raw_data['distances'],
         'best_optim_distances': raw_data['best_optim_distances'], 
         'adv_success': raw_data['adv_success'],
         'ori_success': raw_data['ori_success'],
-        'num_forwards': raw_data['num_forwards'],
-        'num_backwards': raw_data['num_backwards'],
-        'times': raw_data['times'],
-        'hashes': raw_data['hashes'],
-        'box_failures': raw_data['box_failures'],
-        'batch_failures': raw_data['batch_failures'],
-        'targeted': raw_data['targeted'],
-        'original_predictions': raw_data.get('original_predictions', []),
-        'adversarial_predictions': raw_data.get('adversarial_predictions', []),
-        # NOTE: ASR and accuracy computed by get_stats() in metrics package
+        # NOTE: ASR and accuracy computed by get_stats() from success flags above
     }
+    
+    # OPTIONAL: Extra metadata (only if requested)
+    if include_metadata:
+        clean_data.update({
+            'original_predictions': raw_data.get('original_predictions', []),
+            'adversarial_predictions': raw_data.get('adversarial_predictions', []),
+            'num_forwards': raw_data['num_forwards'],
+            'num_backwards': raw_data['num_backwards'],
+            'times': raw_data['times'],
+            'hashes': raw_data['hashes'],
+            'box_failures': raw_data['box_failures'],
+            'batch_failures': raw_data['batch_failures'],
+            'targeted': raw_data['targeted'],
+        })
     
     # Add adversarial inputs if requested
     if save_adversarial and 'adv_inputs' in raw_data:
@@ -257,7 +282,7 @@ def get_stats(
         )
         stats.update(cert_metrics)
     
-    # 5. OPZIONALE: Efficienza query
+    # 5. OPZIONALE: Efficienza query (solo se metadata è disponibile)
     if include_efficiency:
         num_forwards = attack_results.get('num_forwards', [])
         if num_forwards and threat_model in distances:
@@ -266,6 +291,13 @@ def get_stats(
                 distances[threat_model], num_forwards
             )
             stats.update(efficiency_metrics)
+        elif not num_forwards:
+            # Warn if efficiency requested but data not available
+            import warnings
+            warnings.warn(
+                "Efficiency metrics requested but num_forwards not available. "
+                "Use include_metadata=True in run_attack() to collect this data."
+            )
     
     # 6. OPZIONALE: Salvataggio precompilato
     if save_precompiled and output_dir:
