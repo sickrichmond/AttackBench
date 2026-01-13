@@ -110,9 +110,9 @@ def run_attack(
         **kwargs
     )
     
-    # RIMUOVI tutte le statistiche elaborate da raw_data
+    # Return ONLY raw data - all statistics computed by metrics package
     clean_data = {
-        # SOLO dati grezzi - nessuna statistica
+        # Raw attack data
         'distances': raw_data['distances'],
         'best_optim_distances': raw_data['best_optim_distances'], 
         'adv_success': raw_data['adv_success'],
@@ -124,6 +124,9 @@ def run_attack(
         'box_failures': raw_data['box_failures'],
         'batch_failures': raw_data['batch_failures'],
         'targeted': raw_data['targeted'],
+        'original_predictions': raw_data.get('original_predictions', []),
+        'adversarial_predictions': raw_data.get('adversarial_predictions', []),
+        # NOTE: ASR and accuracy computed by get_stats() in metrics package
     }
     
     # Add adversarial inputs if requested

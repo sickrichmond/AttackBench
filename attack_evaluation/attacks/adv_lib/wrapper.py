@@ -5,12 +5,26 @@ import torch
 from torch import Tensor, nn
 
 
-def adv_lib_wrapper(attack: Callable,
-                    model: nn.Module,
+def adv_lib_wrapper(model: nn.Module,
                     inputs: Tensor,
                     labels: Tensor,
+                    attack: Callable,
                     targets: Optional[Tensor] = None,
                     targeted: bool = False) -> Tensor:
+    """
+    Wrapper for adv_lib attacks.
+    
+    Args:
+        model: Target model
+        inputs: Input tensors
+        labels: True labels  
+        attack: Attack function to call
+        targets: Target labels for targeted attacks
+        targeted: Whether attack is targeted
+        
+    Returns:
+        Adversarial examples
+    """
     attack_labels = targets if targeted else labels
     return attack(model=model, inputs=inputs, labels=attack_labels, targeted=targeted)
 

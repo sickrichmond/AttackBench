@@ -8,7 +8,7 @@ from typing import Callable, Dict, Optional, Union, Any
 
 import numpy as np
 import torch
-from adv_lib.utils.attack_utils import _default_metrics
+import torch.nn as nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -160,34 +160,44 @@ def run_attack(model: BenchModel,
                loader: DataLoader,
                attack: Callable,
                targets: Optional[Union[int, Tensor]] = None,
-               metrics: Dict[str, Callable] = _default_metrics,
+               metrics: Dict[str, Callable] = None,  # ← REMOVED default metrics
                threat_model: str = 'l2',
                return_adv: bool = False,
                debug: bool = False,
                **kwargs) -> dict:  # Accepts **kwargs
     """
-    Run an adversarial attack on a model using the provided data loader.
+    Run an adversarial attack and return ONLY RAW data - no computed metrics.
+    
+    All statistics (ASR, accuracy, etc.) are computed by the metrics package.
     
     Args:
         model: BenchModel wrapper around the target model
         loader: DataLoader containing input data
         attack: Attack function to execute
         targets: Target labels for targeted attacks (None for untargeted)
-        metrics: Dictionary of distance metrics to compute
+        metrics: Dictionary of distance metrics to compute (defaults to standard metrics)
         threat_model: Type of threat model ('l2', 'linf', etc.)
         return_adv: Whether to return adversarial examples
         debug: Whether to run in debug mode
         **kwargs: Additional arguments passed to the attack function
         
     Returns:
-        Dictionary containing attack results and statistics
+        Dictionary containing ONLY raw attack data (no computed metrics)
     """
+    
+    # Always import _default_metrics for tracking
+    from adv_lib.utils.attack_utils import _default_metrics
+    
+    # Use default metrics if none provided
+    if metrics is None:
+        metrics = _default_metrics
     
     device = next(model.parameters()).device
     targeted = True if targets is not None else False
     loader_length = len(loader)
 
     accuracies, ori_success, adv_success, hashes, box_failures, batch_failures = [], [], [], [], [], []
+    predictions, adv_predictions = [], []  # ← Added for metrics package  
     forwards, backwards, times = [], [], []
     distances, best_optim_distances = defaultdict(list), defaultdict(list)
 
@@ -208,7 +218,7 @@ def run_attack(model: BenchModel,
         
         # Start tracking of the batch
         model.start_tracking(inputs=inputs, labels=labels, targeted=targeted, targets=targets,
-                             tracking_metric=_default_metrics[threat_model], tracking_threat_model=threat_model)
+                             tracking_metric=metrics[threat_model], tracking_threat_model=threat_model)
 
         if debug:
             adv_inputs = _call_attack_with_kwargs(
@@ -250,6 +260,12 @@ def run_attack(model: BenchModel,
         adv_logits = model(adv_inputs)
         adv_pred = adv_logits.argmax(dim=1)
 
+        # Track predictions for metrics package
+        ori_logits = model(inputs)
+        ori_pred = ori_logits.argmax(dim=1)
+        predictions.extend(ori_pred.cpu().tolist())
+        adv_predictions.extend(adv_pred.cpu().tolist())
+
         success = (adv_pred == targets) if targeted else (adv_pred != labels)
         adv_success.extend(success.cpu().tolist())
 
@@ -257,13 +273,12 @@ def run_attack(model: BenchModel,
             distances[metric].extend(metric_func(adv_inputs, inputs).cpu().tolist())
             best_optim_distances[metric].extend(model.min_dist[metric].cpu().tolist())
 
+    # Return ONLY raw data - no computed metrics
     data = {
         'hashes': hashes,
         'targeted': targeted,
-        'accuracy': sum(accuracies) / len(accuracies),
         'ori_success': ori_success,
         'adv_success': adv_success,
-        'ASR': sum(adv_success) / len(adv_success),
         'times': times,
         'num_forwards': forwards,
         'num_backwards': backwards,
@@ -271,6 +286,9 @@ def run_attack(model: BenchModel,
         'best_optim_distances': dict(best_optim_distances),
         'box_failures': box_failures,
         'batch_failures': batch_failures,
+        # NOTE: accuracy and ASR computed by metrics package
+        'original_predictions': predictions,
+        'adversarial_predictions': adv_predictions,
     }
 
     if return_adv:
