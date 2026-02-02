@@ -92,8 +92,14 @@ def get_stats(
     
     # 2. OPTIONAL: Optimality computation
     if include_optimality:
-        # Try to get best distances
+        # Try to get best distances from multiple sources
         current_best = best_distances
+        
+        # First, check if best distances are in attack_results
+        if not current_best:
+            best_optim = attack_results.get('best_optim_distances', {})
+            if threat_model in best_optim and best_optim[threat_model]:
+                current_best = best_optim[threat_model]
         
         # Auto-load from W&B if requested and info available
         if auto_load_best and not current_best and model_name:

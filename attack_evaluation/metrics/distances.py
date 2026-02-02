@@ -39,15 +39,19 @@ def compute_distance_statistics(distances: List[float]) -> Dict[str, float]:
     }
 
 
-def eval_optimality(adv_distances: np.ndarray, best_distances: List[float]) -> float:
+def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     """
     Compute optimality score comparing attack distances to best known distances.
-    Ported from analysis/utils.py
-    """
-    if not best_distances:
-        return float('nan')
+    Uses AUC-based method from analysis/utils.py (proven implementation).
     
-    # Convert to numpy array if it's a list
+    Args:
+        adv_distances: Adversarial distances from attack
+        best_distances: Best known distances (reference/optimal)
+        
+    Returns:
+        Optimality score (1.0 = optimal, lower = worse)
+    """
+    # Convert to numpy arrays if needed
     if isinstance(adv_distances, list):
         adv_distances = np.array(adv_distances)
     if isinstance(best_distances, list):
@@ -62,7 +66,7 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: List[float]) -> f
     max_dist = np.amax(distances)
     best_area = np.trapz(robust_acc, distances)
 
-    # Compute robust accuracy for attack distances
+    # Compute robust accuracy for attack distances (not used directly)
     distances, counts = np.unique(adv_distances, return_counts=True)
     robust_acc = 1 - counts.cumsum() / len(adv_distances)
 
@@ -70,14 +74,12 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: List[float]) -> f
     distances_clipped, counts = np.unique(adv_distances.clip(min=None, max=max_dist), return_counts=True)
     robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
 
+    # Calculate area under clipped curve
     area = np.trapz(robust_acc_clipped, distances_clipped)
     
-    # Avoid division by zero
-    denominator = clean_acc * max_dist - best_area
-    if denominator <= 0:
-        return float('nan')
-        
-    optimality = 1 - (area - best_area) / denominator
+    # Calculate optimality (normalized AUC difference)
+    optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
+
     return float(optimality)
 
 

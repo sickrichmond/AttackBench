@@ -20,6 +20,7 @@ from attack_evaluation.attacks.original.configs import (
     get_original_fmn,
     get_original_tr,
     get_original_deepfool,
+    get_original_superdeepfool,
 )
 
 # Create attack instances with default parameters
@@ -78,6 +79,14 @@ deepfool = get_original_deepfool(
     num_steps=50
 )
 
+superdeepfool = get_original_superdeepfool(
+    num_classes=10,
+    overshoot=0.02,
+    num_steps=50,
+    alpha=1.5,
+    adaptive_overshoot=True
+)
+
 trust_region = get_original_tr(
     threat_model='linf', 
     adaptive=False, 
@@ -86,4 +95,4 @@ trust_region = get_original_tr(
     num_steps=100
 )
 
-__all__ = ['pgd', 'fgsm', 'apgd', 'fab', 'fmn', 'deepfool', 'trust_region']
+__all__ = ['pgd', 'fgsm', 'apgd', 'fab', 'fmn', 'deepfool', 'superdeepfool', 'trust_region']

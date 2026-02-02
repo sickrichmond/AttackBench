@@ -3,6 +3,7 @@ from typing import Callable, Optional
 
 from .auto_pgd import apgd_attack, apgd_minimal_wrapper, apgd_t_attack
 from .deepfool import deepfool_attack
+from .superdeepfool import superdeepfool_attack
 from .fast_adaptive_boundary import fab_attack
 from .fast_minimum_norm import fmn_attack
 from .pgd_lzero import PGD0_minimal
@@ -255,3 +256,33 @@ def get_original_pgd0_minimal(threat_model: str, num_steps, step_size, kappa, ep
     init_eps = minimal_init_eps[threat_model] if init_eps is None else init_eps
     return partial(PGD0_minimal, search_steps=search_steps, num_steps=num_steps, step_size=step_size, kappa=kappa,
                    epsilon=epsilon, init_eps=init_eps, n_restarts=n_restarts)
+
+
+def original_superdeepfool():
+    name = 'superdeepfool'
+    source = 'original'
+    num_classes = 10
+    overshoot = 0.02
+    num_steps = 50
+    alpha = 1.5
+    adaptive_overshoot = True
+
+
+def get_original_superdeepfool(num_classes: int, overshoot: float, num_steps: int, 
+                                alpha: float = 1.5, adaptive_overshoot: bool = True) -> Callable:
+    """
+    Get SuperDeepFool attack with specified parameters.
+    
+    Args:
+        num_classes: Number of classes to consider (default: 10)
+        overshoot: Initial overshoot parameter (default: 0.02)
+        num_steps: Maximum iterations (default: 50)
+        alpha: Step size multiplier for faster convergence (default: 1.5)
+        adaptive_overshoot: Whether to adaptively adjust overshoot (default: True)
+        
+    Returns:
+        Partial function configured with the specified parameters
+    """
+    return partial(superdeepfool_attack, num_classes=num_classes, overshoot=overshoot, 
+                   num_steps=num_steps, alpha=alpha, adaptive_overshoot=adaptive_overshoot)
+
