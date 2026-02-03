@@ -156,6 +156,12 @@ def superdeepfool_attack(model: nn.Module,
             adaptive_overshoot=adaptive_overshoot
         )
         
+        # Remove batch dimension if present (should be [C, H, W])
+        while adv_img.dim() > 3:
+            adv_img = adv_img.squeeze(0)
+        
+        # Append directly like deepfool does
         adv_inputs.append(adv_img)
     
+    # Stack to create batch dimension [N, C, H, W]
     return torch.stack(adv_inputs)

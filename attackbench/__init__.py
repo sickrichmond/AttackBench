@@ -9,6 +9,9 @@ from attack_evaluation.attacks.ingredient import get_attack  # DIRETTO
 from attack_evaluation.datasets.ingredient import get_loader  
 from attack_evaluation.models.ingredient import get_model
 
+# BoMN (Best-of-MinNorm) composite attack
+from attack_evaluation.attacks.bomn import bomn_attack
+
 # RobustBench integration
 from robustbench import load_model
 
@@ -44,6 +47,10 @@ __all__ = [
     
     # Custom components
     'create_custom_attack',
+    
+    # BoMN composite attack
+    'bomn_attack',
+    'create_bomn',
     
     # W&B functions
     'upload_precompiled_distances',
