@@ -150,6 +150,7 @@ dmypy.json
 # DB stuff
 /wandb/
 /temp_real_upload/
+/temp_upload/
 
 #precompiled distancies and cache
 /cache/

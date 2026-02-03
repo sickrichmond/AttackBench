@@ -12,13 +12,19 @@ import torch
 
 def save_precompiled_distances(
     attack_data: Dict[str, Any], 
+    dataset: str,
     threat_model: str, 
-    output_dir: str,
-    model_name: Optional[str] = None,
-    attack_name: Optional[str] = None,
-    format: str = 'json'  # Changed default to json
-) -> str:
-    """Save precompiled distances to local file and optionally W&B."""
+    model_name: str,
+    attack_name: str,
+    output_dir: str = './temp_upload',
+    format: str = 'json'
+) -> tuple[str, Dict[str, Any]]:
+    """
+    Save precompiled distances to local file with automatic naming.
+    
+    Returns:
+        tuple: (file_path, metadata_dict) for easy upload
+    """
     
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -38,35 +44,36 @@ def save_precompiled_distances(
         **basic_metrics
     }
     
-    # Add metadata if available
-    if model_name or attack_name:
-        save_data['metadata'] = {
-            'model_name': model_name,
-            'attack_name': attack_name,
-            'threat_model': threat_model
-        }
+    # Add metadata
+    n_samples = len(attack_data.get('adv_success', []))
+    metadata = {
+        'dataset': dataset,
+        'model_name': model_name,
+        'attack_name': attack_name,
+        'threat_model': threat_model,
+        'n_samples': n_samples
+    }
+    save_data['metadata'] = metadata
     
-    # Save locally
-    if format == 'npz':
-        file_path = output_path / 'precompiled_distances.npz'
-        np.savez_compressed(file_path, **save_data)
-    else:
-        file_path = output_path / 'precompiled_distances.json'
-        # Convert numpy arrays to lists for JSON
-        json_data = {}
-        for key, value in save_data.items():
-            if isinstance(value, np.ndarray):
-                json_data[key] = value.tolist()
-            elif isinstance(value, dict):
-                json_data[key] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) 
-                                for k, v in value.items()}
-            else:
-                json_data[key] = value
-        
-        with open(file_path, 'w') as f:
-            json.dump(json_data, f, indent=2)
+    # Create filename: dataset-threat_model-model-attack-nsamples.json
+    filename = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}.json"
+    file_path = output_path / filename
     
-    return str(file_path)
+    # Convert numpy arrays to lists for JSON
+    json_data = {}
+    for key, value in save_data.items():
+        if isinstance(value, np.ndarray):
+            json_data[key] = value.tolist()
+        elif isinstance(value, dict):
+            json_data[key] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) 
+                            for k, v in value.items()}
+        else:
+            json_data[key] = value
+    
+    with open(file_path, 'w') as f:
+        json.dump(json_data, f, indent=2)
+    
+    return str(file_path), metadata
 
 
 def load_precompiled_distances(file_path: str) -> Optional[Dict[str, Any]]:

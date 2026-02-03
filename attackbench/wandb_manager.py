@@ -13,56 +13,77 @@ WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 
 def upload_precompiled_distances(
-    file_path: Union[str, Path],
-    dataset: str,
-    threat_model: str, 
-    model_name: str,
-    batch_size: int,
+    file_path: Union[str, Path] = None,
+    attack_data: Dict[str, Any] = None,
+    dataset: str = None,
+    threat_model: str = None, 
+    model_name: str = None,
+    attack_name: str = None,
     overwrite: bool = False
 ) -> bool:
     """
     Upload precompiled distances to W&B.
     
+    Two usage modes:
+    1. Pass file_path directly (legacy)
+    2. Pass attack_data + metadata (automatic file creation)
+    
     Args:
-        file_path: Path to JSON file containing precompiled distances
-        dataset: Dataset name (e.g., 'cifar10')
-        threat_model: Threat model (e.g., 'linf', 'l2')
-        model_name: Model name (e.g., 'standard', 'Carmon2019Unlabeled')
-        batch_size: Batch size used for the distances
+        file_path: Path to JSON file (optional if attack_data provided)
+        attack_data: Raw attack results dict (optional if file_path provided)
+        dataset: Dataset name (required if attack_data provided)
+        threat_model: Threat model (required if attack_data provided)
+        model_name: Model name (required if attack_data provided)
+        attack_name: Attack name (required if attack_data provided)
         overwrite: Whether to overwrite existing artifacts
         
     Returns:
         True if upload successful, False otherwise
-        
-    Example:
-        >>> success = upload_precompiled_distances(
-        ...     'distances.json', 'cifar10', 'linf', 'standard', 1000
-        ... )
-        >>> print(f"Upload {'successful' if success else 'failed'}")
     """
     
-    file_path = Path(file_path)
-    if not file_path.exists():
-        print(f"Error: File not found: {file_path}")
-        return False
-    
-    # Validate file format
-    try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            print(f"Error: File must contain a JSON object")
+    # Mode 2: Create file from attack_data
+    if attack_data is not None:
+        if not all([dataset, threat_model, model_name, attack_name]):
+            print("Error: Must provide dataset, threat_model, model_name, attack_name with attack_data")
             return False
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON file: {e}")
-        return False
+        
+        from attack_evaluation.metrics.storage import save_precompiled_distances
+        file_path, metadata = save_precompiled_distances(
+            attack_data, dataset, threat_model, model_name, attack_name
+        )
+        n_samples = metadata['n_samples']
+    else:
+        # Mode 1: Use provided file_path
+        if file_path is None:
+            print("Error: Must provide either file_path or attack_data")
+            return False
+        
+        file_path = Path(file_path)
+        if not file_path.exists():
+            print(f"Error: File not found: {file_path}")
+            return False
+        
+        # Extract metadata from file
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            metadata = data.get('metadata', {})
+            dataset = metadata.get('dataset', dataset)
+            threat_model = metadata.get('threat_model', threat_model)
+            model_name = metadata.get('model_name', model_name)
+            attack_name = metadata.get('attack_name', attack_name)
+            n_samples = metadata.get('n_samples', len(data.get('adv_success', [])))
+        except:
+            print("Error: Could not extract metadata from file")
+            return False
+    
     
     # Create artifact name following convention
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{batch_size}"
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}"
     
     print(f"Uploading to W&B: {artifact_name}")
     print(f"   File: {file_path}")
-    print(f"   Size: {file_path.stat().st_size / 1024:.1f} KB")
+    print(f"   Size: {Path(file_path).stat().st_size / 1024:.1f} KB")
     
     try:
         # Check if artifact already exists
@@ -80,14 +101,14 @@ def upload_precompiled_distances(
             artifact = wandb.Artifact(
                 name=artifact_name,
                 type="precompiled_distances",
-                description=f"Precompiled distances for {model_name} on {dataset} ({threat_model})",
+                description=f"Precompiled distances for {attack_name} on {model_name} ({dataset}, {threat_model})",
                 metadata={
                     "dataset": dataset,
                     "model": model_name,
+                    "attack": attack_name,
                     "threat_model": threat_model,
-                    "batch_size": str(batch_size),
-                    "file_size": file_path.stat().st_size,
-                    "num_samples": len(data)
+                    "n_samples": n_samples,
+                    "file_size": Path(file_path).stat().st_size
                 }
             )
             artifact.add_file(str(file_path))
@@ -103,8 +124,9 @@ def upload_precompiled_distances(
 def download_precompiled_distances(
     dataset: str,
     threat_model: str,
-    model_name: str, 
-    batch_size: int,
+    model_name: str,
+    attack_name: str,
+    n_samples: int = None,
     cache_dir: str = "./cache",
     force_download: bool = False
 ) -> Optional[Dict[str, Any]]:
@@ -114,24 +136,33 @@ def download_precompiled_distances(
     Args:
         dataset: Dataset name (e.g., 'cifar10')
         threat_model: Threat model (e.g., 'linf', 'l2')
-        model_name: Model name (e.g., 'standard', 'Carmon2019Unlabeled')
-        batch_size: Batch size used for the distances
+        model_name: Model name (e.g., 'Carmon2019Unlabeled')
+        attack_name: Attack name (e.g., 'deepfool', 'pgd')
+        n_samples: Number of samples (optional, will find latest if not specified)
         cache_dir: Local cache directory
         force_download: Force re-download even if cached
         
     Returns:
         Dictionary with precompiled distances, or None if not found
-        
-    Example:
-        >>> distances = download_precompiled_distances(
-        ...     'cifar10', 'linf', 'standard', 1000
-        ... )
-        >>> if distances:
-        ...     print(f"Downloaded {len(distances)} distances")
     """
     
-    # Create artifact name following convention
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{batch_size}"
+    # Try to find artifact
+    if n_samples:
+        artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}"
+        return _download_artifact(artifact_name, dataset, cache_dir, force_download)
+    else:
+        # Search for any matching artifact (will get latest)
+        prefix = f"{dataset}-{threat_model}-{model_name}-{attack_name}-"
+        return _search_and_download(prefix, dataset, cache_dir, force_download)
+
+
+def _download_artifact(
+    artifact_name: str, 
+    dataset: str, 
+    cache_dir: str, 
+    force_download: bool
+) -> Optional[Dict[str, Any]]:
+    """Helper to download a specific artifact."""
     file_name = f"{artifact_name}.json"
     
     cache_path = Path(cache_dir) / dataset
@@ -156,7 +187,7 @@ def download_precompiled_distances(
         
         print(f"   Found artifact: {artifact.name} (v{artifact.version})")
         print(f"   Size: {artifact.size / 1024:.1f} KB")
-        print(f"   Samples: {artifact.metadata.get('num_samples', 'Unknown')}")
+        print(f"   Samples: {artifact.metadata.get('n_samples', 'Unknown')}")
         
         # Download to cache
         download_path = artifact.download(root=str(cache_path))
@@ -176,26 +207,44 @@ def download_precompiled_distances(
         with open(downloaded_file, 'r') as f:
             data = json.load(f)
         
-        print(f"Successfully downloaded {len(data)} distances to: {cache_path}")
+        print(f"Successfully downloaded")
         return data
         
     except wandb.errors.CommError:
         print(f"Error: Artifact not found: {artifact_name}")
-        print(f"   Available models for {dataset}-{threat_model}: ")
-        try:
-            api = wandb.Api()
-            # Use artifact_type to list artifacts instead of deprecated api.artifacts()
-            artifact_type = api.artifact_type("precompiled_distances", f"{WANDB_ENTITY}/{WANDB_PROJECT}")
-            artifacts = artifact_type.artifacts(per_page=50)
-            available = [a.name for a in artifacts if a.name.startswith(f"{dataset}-{threat_model}")]
-            for name in sorted(set(available))[:5]:  # Show first 5
-                print(f"     - {name}")
-        except:
-            print(f"     Could not list available artifacts")
         return None
     except Exception as e:
         print(f"Download failed: {e}")
         return None
+
+
+def _search_and_download(
+    prefix: str,
+    dataset: str,
+    cache_dir: str,
+    force_download: bool
+) -> Optional[Dict[str, Any]]:
+    """Helper to search and download matching artifacts."""
+    try:
+        api = wandb.Api()
+        artifact_type = api.artifact_type("precompiled_distances", f"{WANDB_ENTITY}/{WANDB_PROJECT}")
+        artifacts = artifact_type.artifacts(per_page=50)
+        
+        # Find matching artifacts
+        matches = [a for a in artifacts if a.name.startswith(prefix)]
+        if not matches:
+            print(f"Error: No artifacts found matching: {prefix}*")
+            return None
+        
+        # Get latest
+        latest = matches[0]
+        print(f"Found {len(matches)} matching artifacts, using latest: {latest.name}")
+        return _download_artifact(latest.name, dataset, cache_dir, force_download)
+        
+    except Exception as e:
+        print(f"Search failed: {e}")
+        return None
+
 
 def upload_directory(
     directory: Union[str, Path],

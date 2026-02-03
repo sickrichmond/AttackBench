@@ -90,10 +90,10 @@ def compute_basic_metrics(attack_results: Dict[str, Any]) -> Dict[str, float]:
     
     metrics = {}
     
-    if adv_success:
+    if len(adv_success) > 0:
         metrics['ASR'] = sum(adv_success) / len(adv_success)
         
-    if ori_success:
+    if len(ori_success) > 0:
         metrics['accuracy'] = sum(ori_success) / len(ori_success)
     
     return metrics
