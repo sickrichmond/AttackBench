@@ -2,6 +2,9 @@ from attack_evaluation.run import run_attack, get_stats  # Import from run.py
 # OR if you prefer from metrics package:
 # from attack_evaluation.metrics.analysis import get_stats
 
+# Version info
+__version__ = "1.0.0"
+
 from attack_evaluation.custom_components import create_custom_attack
 
 # Import con nuova signature
@@ -32,6 +35,17 @@ from .wandb_manager import (
     list_available_distances
 )
 
+# Stage 3: Optimality computation (user-friendly API)
+from attack_evaluation.metrics import compute_local_optimality, compare_attacks_optimality
+
+# Stage 4-5: Global Optimality & Ranking (user-friendly API)
+from attack_evaluation.metrics import (
+    compute_global_optimality,
+    create_attack_leaderboard,
+    compare_attacks_global,
+    format_leaderboard
+)
+
 # W&B utils for database reading
 from .wandb_utils import get_precompiled_distances
 
@@ -51,6 +65,16 @@ __all__ = [
     # BoMN composite attack
     'bomn_attack',
     'create_bomn',
+    
+    # Stage 3: Optimality (API-level)
+    'compute_local_optimality',
+    'compare_attacks_optimality',
+    
+    # Stage 4-5: Global Optimality & Ranking (API-level)
+    'compute_global_optimality',
+    'create_attack_leaderboard',
+    'compare_attacks_global',
+    'format_leaderboard',
     
     # W&B functions
     'upload_precompiled_distances',

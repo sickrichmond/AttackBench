@@ -10,6 +10,8 @@ Main Functions:
 - compute_optimality(): Optimality scores only
 - compute_efficiency(): Query efficiency only
 - compare_attacks(): Multi-attack ensemble analysis
+- compute_local_optimality(): Stage 3 - Local optimality (user-friendly API)
+- compare_attacks_optimality(): Compare multiple attacks' optimality
 """
 
 # Main analysis functions
@@ -19,6 +21,20 @@ from .analysis import (
     compute_curves,
     compute_optimality, 
     compute_efficiency
+)
+
+# Stage 3: Optimality (user-friendly API)
+from .optimality import (
+    compute_local_optimality,
+    compare_attacks_optimality
+)
+
+# Stage 4-5: Global Optimality & Ranking (user-friendly API)
+from .global_optimality import (
+    compute_global_optimality,
+    create_attack_leaderboard,
+    compare_attacks_global,
+    format_leaderboard
 )
 
 # Direct access to component functions
