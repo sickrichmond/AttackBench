@@ -95,6 +95,14 @@ dev = [
     "flake8>=4.0",
 ]
 
+# Documentation package
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "sphinx-autodoc-typehints>=1.19.0",
+    "myst-parser>=1.0.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["attackbench*", "attack_evaluation*", "analysis*"] 
