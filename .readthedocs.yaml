@@ -26,9 +26,10 @@ sphinx:
   fail_on_warning: false
 
 # Optionally build your docs in additional formats such as PDF
-formats:
-  - pdf
-  - epub
+# Disabled for now to avoid build issues
+# formats:
+#   - pdf
+#   - epub
 
 # Python configuration
 python:

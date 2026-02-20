@@ -32,7 +32,7 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 project = 'AttackBench'
 copyright = '2026, Antonio Emanuele Cinà, Riccardo Trebiani'
-author = 'Antonio Emanuele Cinà, Riccardo Trebiani'
+author = 'Antonio Emanuele Cinà , Jérôme Rony , Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed, Fabio Roli and Riccardo Trebiani'
 version = '1.0'
 release = '1.0.0'
 

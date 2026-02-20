@@ -48,6 +48,15 @@ def adv_lib_alma_l2():
     init_lr_distance = 0.1
 
 
+def adv_lib_alma_linf():
+    name = 'alma'
+    source = 'adv_lib'
+    threat_model = 'linf'
+    num_steps = 1000
+    alpha = 0.9
+    init_lr_distance = 0.01
+
+
 def get_adv_lib_alma(threat_model: str, num_steps: int, alpha: float, init_lr_distance: float) -> Callable:
     return partial(alma, distance=threat_model, num_steps=num_steps, α=alpha, init_lr_distance=init_lr_distance)
 

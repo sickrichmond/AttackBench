@@ -64,7 +64,6 @@ __all__ = [
     
     # BoMN composite attack
     'bomn_attack',
-    'create_bomn',
     
     # Stage 3: Optimality (API-level)
     'compute_local_optimality',
