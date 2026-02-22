@@ -105,9 +105,15 @@ def get_attack(lib: str, attack: str, threat_model: str = None, **kwargs) -> Cal
         wrapper = library_modules[lib]._wrapper
         
         if isinstance(attack_instance, dict):
-            return partial(wrapper, **attack_instance)
+            attack_fn = partial(wrapper, **attack_instance)
         else:
-            return partial(wrapper, attack=attack_instance)
+            attack_fn = partial(wrapper, attack=attack_instance)
+        
+        # Attach metadata for automatic extraction in run_attack
+        attack_fn._attackbench_name = attack
+        attack_fn._attackbench_lib = lib
+        
+        return attack_fn
             
     except Exception as e:
         print(f"Error creating attack {lib}_{attack}: {e}")

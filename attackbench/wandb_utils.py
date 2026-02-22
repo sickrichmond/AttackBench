@@ -7,7 +7,7 @@ WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
 
-def get_precompiled_distances(dataset, threat_model, model_name, attack_name, n_samples, cache_dir="./data/cache"):
+def get_precompiled_distances(dataset, threat_model, model_name, attack_name, attack_lib, n_samples, cache_dir="./data/cache"):
     """
     Retrieves precompiled distances for a specific attack. Checks local cache first, then downloads from W&B.
     
@@ -16,14 +16,15 @@ def get_precompiled_distances(dataset, threat_model, model_name, attack_name, n_
         threat_model: Threat model (e.g., 'linf', 'l2')
         model_name: Model name (e.g., 'Standard')
         attack_name: Attack name (e.g., 'pgd', 'apgd')
+        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks', 'adv_lib')
         n_samples: Number of samples
         cache_dir: Local cache directory
         
     Returns:
         Dictionary with precompiled distances, or None if not found
     """
-    # Artifact naming convention: dataset-threat_model-model-attack-n_samples
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}"
+    # Artifact naming convention: dataset-threat_model-model-attack-lib-n_samples
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
     file_name = f"{artifact_name}.json"
     
     cache_path = Path(cache_dir) / dataset

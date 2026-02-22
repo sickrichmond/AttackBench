@@ -16,11 +16,22 @@ def save_precompiled_distances(
     threat_model: str, 
     model_name: str,
     attack_name: str,
+    attack_lib: str,
     output_dir: str = './temp_upload',
     format: str = 'json'
 ) -> tuple[str, Dict[str, Any]]:
     """
     Save precompiled distances to local file with automatic naming.
+    
+    Args:
+        attack_data: Raw attack results dict
+        dataset: Dataset name (e.g., 'cifar10')
+        threat_model: Threat model (e.g., 'linf')
+        model_name: Model name (e.g., 'Standard')
+        attack_name: Attack name (e.g., 'pgd')
+        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks')
+        output_dir: Output directory
+        format: Output format ('json')
     
     Returns:
         tuple: (file_path, metadata_dict) for easy upload
@@ -50,13 +61,14 @@ def save_precompiled_distances(
         'dataset': dataset,
         'model_name': model_name,
         'attack_name': attack_name,
+        'attack_lib': attack_lib,
         'threat_model': threat_model,
         'n_samples': n_samples
     }
     save_data['metadata'] = metadata
     
-    # Create filename: dataset-threat_model-model-attack-nsamples.json
-    filename = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}.json"
+    # Create filename: dataset-threat_model-model-attack-lib-nsamples.json
+    filename = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}.json"
     file_path = output_path / filename
     
     # Convert numpy arrays to lists for JSON

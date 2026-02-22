@@ -37,6 +37,54 @@ METRICS = OrderedDict([
 ])
 
 
+def _extract_metadata(model, dataset, attack):
+    """
+    Extract metadata from objects for W&B caching.
+    
+    Returns:
+        tuple: (dataset_name, model_name, attack_name, attack_lib)
+               Any value may be None if extraction fails.
+    """
+    # Extract dataset name from DataLoader
+    dataset_name = getattr(dataset, '_attackbench_dataset', None)
+    
+    # Extract model name from model
+    model_name = getattr(model, '_attackbench_model', None)
+    # Fallback: try model.model for wrapped models
+    if model_name is None and hasattr(model, 'model'):
+        model_name = getattr(model.model, '_attackbench_model', None)
+    
+    # Extract attack name and lib from attack callable
+    attack_name = getattr(attack, '_attackbench_name', None)
+    attack_lib = getattr(attack, '_attackbench_lib', None)
+    
+    # Fallback: try to get name from partial/function
+    if attack_name is None:
+        if hasattr(attack, 'func'):  # functools.partial
+            attack_name = getattr(attack.func, '__name__', None)
+        else:
+            attack_name = getattr(attack, '__name__', None)
+    
+    # Fallback: try to infer library from module
+    if attack_lib is None:
+        module = None
+        if hasattr(attack, 'func'):
+            module = getattr(attack.func, '__module__', '')
+        else:
+            module = getattr(attack, '__module__', '')
+        
+        if module:
+            # Extract library name from module path
+            # e.g., 'attack_evaluation.attacks.foolbox.wrapper' -> 'foolbox'
+            parts = module.split('.')
+            for lib_name in ['foolbox', 'torchattacks', 'adv_lib', 'art', 'cleverhans', 'deeprobust', 'original']:
+                if lib_name in parts:
+                    attack_lib = lib_name
+                    break
+    
+    return dataset_name, model_name, attack_name, attack_lib
+
+
 def run_attack(
     model: nn.Module,
     dataset: DataLoader,
@@ -53,6 +101,7 @@ def run_attack(
     dataset_name: Optional[str] = None,
     model_name: Optional[str] = None,
     attack_name: Optional[str] = None,
+    attack_lib: Optional[str] = None,
     # Caching options
     use_cached: bool = True,
     cache_dir: str = "./cache",
@@ -64,9 +113,14 @@ def run_attack(
     This function is MINIMAL - returns only distances and success flags.
     For ALL analysis and statistics, use attackbench.get_stats() afterwards.
     
-    If use_cached=True and metadata (dataset_name, model_name, attack_name) is provided,
-    the function will first check W&B for existing precompiled distances with the same
-    parameters. If found, returns cached results without running the attack.
+    **Automatic Metadata Extraction:**
+    When using get_loader(), get_model(), and get_attack() helpers, metadata
+    (dataset_name, model_name, attack_name, attack_lib) is automatically extracted
+    from the objects. You don't need to specify these parameters manually.
+    
+    If use_cached=True and all metadata is available, the function will first
+    check W&B for existing precompiled distances with the same parameters.
+    If found, returns cached results without running the attack.
     
     Args:
         model: PyTorch model to attack
@@ -80,9 +134,10 @@ def run_attack(
         seed: Random seed
         debug: Debug mode
         include_metadata: Include extra metadata (predictions, queries, times, hashes)
-        dataset_name: Name of the dataset (e.g., 'cifar10') - used for W&B/optimality
-        model_name: Name of the model (e.g., 'Standard') - used for W&B/optimality
-        attack_name: Name of the attack (e.g., 'pgd') - used for W&B/optimality
+        dataset_name: Override auto-detected dataset name
+        model_name: Override auto-detected model name
+        attack_name: Override auto-detected attack name
+        attack_lib: Override auto-detected attack library
         use_cached: If True, check W&B for cached precompiled distances before running
         cache_dir: Directory for local cache of W&B downloads
         **kwargs: Additional arguments passed to attack
@@ -140,18 +195,26 @@ def run_attack(
     if len(dataset) == 0:
         raise ValueError("Dataset is empty - no inputs to attack")
     
+    # Auto-extract metadata from objects if not provided
+    auto_dataset, auto_model, auto_attack, auto_lib = _extract_metadata(model, dataset, attack)
+    dataset_name = dataset_name or auto_dataset
+    model_name = model_name or auto_model
+    attack_name = attack_name or auto_attack
+    attack_lib = attack_lib or auto_lib
+    
     # Calculate n_samples from dataset for W&B lookup
     n_samples = sum(len(batch[0]) for batch in dataset)
     
     # Check for cached precompiled distances on W&B
-    if use_cached and all([dataset_name, model_name, attack_name]):
-        print(f"[AttackBench] Checking W&B for cached distances: {dataset_name}-{threat_model}-{model_name}-{attack_name}-{n_samples}")
+    if use_cached and all([dataset_name, model_name, attack_name, attack_lib]):
+        print(f"[AttackBench] Checking W&B for cached distances: {dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}")
         
         cached_data = get_precompiled_distances(
             dataset=dataset_name,
             threat_model=threat_model,
             model_name=model_name,
             attack_name=attack_name,
+            attack_lib=attack_lib,
             n_samples=n_samples,
             cache_dir=cache_dir
         )
@@ -169,6 +232,7 @@ def run_attack(
                     'dataset': dataset_name,
                     'model_name': model_name,
                     'attack_name': attack_name,
+                    'attack_lib': attack_lib,
                     'threat_model': threat_model,
                     'n_samples': n_samples,
                     'source': 'wandb_cache'  # Indicate this came from cache
@@ -205,6 +269,7 @@ def run_attack(
             'dataset': dataset_name,
             'model_name': model_name,
             'attack_name': attack_name,
+            'attack_lib': attack_lib,
             'threat_model': threat_model,
             'n_samples': n_samples,
             'source': 'executed'  # Indicate this was freshly computed

@@ -68,4 +68,8 @@ def get_loader(dataset: str, batch_size: int = 128, num_samples: Optional[int] =
             data = Subset(data, indices=indices)
     
     loader = DataLoader(dataset=data, batch_size=batch_size)
+    
+    # Attach metadata for automatic extraction in run_attack
+    loader._attackbench_dataset = dataset
+    
     return loader

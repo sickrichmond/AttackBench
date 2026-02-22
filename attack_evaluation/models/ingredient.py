@@ -215,4 +215,8 @@ def get_model(model_name: str = None, dataset: str = None, source: str = 'local'
     model = BenchModel(base_model, enforce_box=enforce_box, num_max_propagations=num_max_propagations)
     model.eval()
     model.requires_grad_(requires_grad)
+    
+    # Attach metadata for automatic extraction in run_attack
+    model._attackbench_model = model_name_internal
+    
     return model

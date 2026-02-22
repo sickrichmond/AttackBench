@@ -20,6 +20,7 @@ def upload_precompiled_distances(
     threat_model: str = None, 
     model_name: str = None,
     attack_name: str = None,
+    attack_lib: str = None,
     overwrite: bool = False
 ) -> bool:
     """
@@ -36,6 +37,7 @@ def upload_precompiled_distances(
         threat_model: Threat model (required if attack_data provided)
         model_name: Model name (required if attack_data provided)
         attack_name: Attack name (required if attack_data provided)
+        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks')
         overwrite: Whether to overwrite existing artifacts
         
     Returns:
@@ -44,13 +46,13 @@ def upload_precompiled_distances(
     
     # Mode 2: Create file from attack_data
     if attack_data is not None:
-        if not all([dataset, threat_model, model_name, attack_name]):
-            print("Error: Must provide dataset, threat_model, model_name, attack_name with attack_data")
+        if not all([dataset, threat_model, model_name, attack_name, attack_lib]):
+            print("Error: Must provide dataset, threat_model, model_name, attack_name, attack_lib with attack_data")
             return False
         
         from attack_evaluation.metrics.storage import save_precompiled_distances
         file_path, metadata = save_precompiled_distances(
-            attack_data, dataset, threat_model, model_name, attack_name
+            attack_data, dataset, threat_model, model_name, attack_name, attack_lib
         )
         n_samples = metadata['n_samples']
     else:
@@ -73,14 +75,18 @@ def upload_precompiled_distances(
             threat_model = metadata.get('threat_model', threat_model)
             model_name = metadata.get('model_name', model_name)
             attack_name = metadata.get('attack_name', attack_name)
+            attack_lib = metadata.get('attack_lib', attack_lib)
             n_samples = metadata.get('n_samples', len(data.get('adv_success', [])))
         except:
             print("Error: Could not extract metadata from file")
             return False
     
+    if not all([dataset, threat_model, model_name, attack_name, attack_lib]):
+        print("Error: Missing required metadata (dataset, threat_model, model_name, attack_name, attack_lib)")
+        return False
     
     # Create artifact name following convention
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}"
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
     
     print(f"Uploading to W&B: {artifact_name}")
     print(f"   File: {file_path}")
@@ -102,11 +108,12 @@ def upload_precompiled_distances(
             artifact = wandb.Artifact(
                 name=artifact_name,
                 type="precompiled_distances",
-                description=f"Precompiled distances for {attack_name} on {model_name} ({dataset}, {threat_model})",
+                description=f"Precompiled distances for {attack_name} ({attack_lib}) on {model_name} ({dataset}, {threat_model})",
                 metadata={
                     "dataset": dataset,
                     "model": model_name,
                     "attack": attack_name,
+                    "attack_lib": attack_lib,
                     "threat_model": threat_model,
                     "n_samples": n_samples,
                     "file_size": Path(file_path).stat().st_size
@@ -127,6 +134,7 @@ def download_precompiled_distances(
     threat_model: str,
     model_name: str,
     attack_name: str,
+    attack_lib: str,
     n_samples: int = None,
     cache_dir: str = "./cache",
     force_download: bool = False
@@ -139,6 +147,7 @@ def download_precompiled_distances(
         threat_model: Threat model (e.g., 'linf', 'l2')
         model_name: Model name (e.g., 'Carmon2019Unlabeled')
         attack_name: Attack name (e.g., 'deepfool', 'pgd')
+        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks')
         n_samples: Number of samples (optional, will find latest if not specified)
         cache_dir: Local cache directory
         force_download: Force re-download even if cached
@@ -149,11 +158,11 @@ def download_precompiled_distances(
     
     # Try to find artifact
     if n_samples:
-        artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{n_samples}"
+        artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
         return _download_artifact(artifact_name, dataset, cache_dir, force_download)
     else:
         # Search for any matching artifact (will get latest)
-        prefix = f"{dataset}-{threat_model}-{model_name}-{attack_name}-"
+        prefix = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-"
         return _search_and_download(prefix, dataset, cache_dir, force_download)
 
 
