@@ -25,6 +25,9 @@ from .utils import run_attack as _run_attack_impl, set_seed
 # Import get_stats from metrics package (no duplication!)
 from .metrics.analysis import get_stats
 
+# W&B integration for cached distances
+from attackbench.wandb_utils import get_precompiled_distances
+
 # Supported metrics
 METRICS = OrderedDict([
     ('linf', linf_distances),
@@ -46,6 +49,13 @@ def run_attack(
     seed: int = 42,
     debug: bool = False,
     include_metadata: bool = False,  # NEW: Control extra data
+    # Metadata for W&B integration and optimality computation
+    dataset_name: Optional[str] = None,
+    model_name: Optional[str] = None,
+    attack_name: Optional[str] = None,
+    # Caching options
+    use_cached: bool = True,
+    cache_dir: str = "./cache",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -53,6 +63,10 @@ def run_attack(
     
     This function is MINIMAL - returns only distances and success flags.
     For ALL analysis and statistics, use attackbench.get_stats() afterwards.
+    
+    If use_cached=True and metadata (dataset_name, model_name, attack_name) is provided,
+    the function will first check W&B for existing precompiled distances with the same
+    parameters. If found, returns cached results without running the attack.
     
     Args:
         model: PyTorch model to attack
@@ -66,6 +80,11 @@ def run_attack(
         seed: Random seed
         debug: Debug mode
         include_metadata: Include extra metadata (predictions, queries, times, hashes)
+        dataset_name: Name of the dataset (e.g., 'cifar10') - used for W&B/optimality
+        model_name: Name of the model (e.g., 'Standard') - used for W&B/optimality
+        attack_name: Name of the attack (e.g., 'pgd') - used for W&B/optimality
+        use_cached: If True, check W&B for cached precompiled distances before running
+        cache_dir: Directory for local cache of W&B downloads
         **kwargs: Additional arguments passed to attack
     
     Returns:
@@ -121,6 +140,43 @@ def run_attack(
     if len(dataset) == 0:
         raise ValueError("Dataset is empty - no inputs to attack")
     
+    # Calculate n_samples from dataset for W&B lookup
+    n_samples = sum(len(batch[0]) for batch in dataset)
+    
+    # Check for cached precompiled distances on W&B
+    if use_cached and all([dataset_name, model_name, attack_name]):
+        print(f"[AttackBench] Checking W&B for cached distances: {dataset_name}-{threat_model}-{model_name}-{attack_name}-{n_samples}")
+        
+        cached_data = get_precompiled_distances(
+            dataset=dataset_name,
+            threat_model=threat_model,
+            model_name=model_name,
+            attack_name=attack_name,
+            n_samples=n_samples,
+            cache_dir=cache_dir
+        )
+        
+        if cached_data is not None:
+            print(f"[AttackBench] Found cached distances! Skipping attack execution.")
+            
+            # Return cached data with metadata
+            return {
+                'distances': cached_data.get('distances', {}),
+                'best_optim_distances': cached_data.get('best_optim_distances', {}),
+                'adv_success': cached_data.get('adv_success', []),
+                'ori_success': cached_data.get('ori_success', []),
+                'metadata': {
+                    'dataset': dataset_name,
+                    'model_name': model_name,
+                    'attack_name': attack_name,
+                    'threat_model': threat_model,
+                    'n_samples': n_samples,
+                    'source': 'wandb_cache'  # Indicate this came from cache
+                }
+            }
+        else:
+            print(f"[AttackBench] No cached distances found. Running attack...")
+    
     # Run attack - SOLO dati grezzi
     raw_data = _run_attack_impl(
         model=model,
@@ -134,6 +190,8 @@ def run_attack(
     )
     
     # Return ONLY essential raw data - all statistics computed by metrics package
+    n_samples = len(raw_data['adv_success'])
+    
     clean_data = {
         # ALWAYS: Core attack data (needed by get_stats)
         'distances': raw_data['distances'],
@@ -141,6 +199,16 @@ def run_attack(
         'adv_success': raw_data['adv_success'],
         'ori_success': raw_data['ori_success'],
         # NOTE: ASR and accuracy computed by get_stats() from success flags above
+        
+        # ALWAYS: Metadata for W&B integration and optimality computation
+        'metadata': {
+            'dataset': dataset_name,
+            'model_name': model_name,
+            'attack_name': attack_name,
+            'threat_model': threat_model,
+            'n_samples': n_samples,
+            'source': 'executed'  # Indicate this was freshly computed
+        }
     }
     
     # OPTIONAL: Extra metadata (only if requested)

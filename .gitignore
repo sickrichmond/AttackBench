@@ -157,3 +157,4 @@ dmypy.json
 
 #precompiled distancies and cache
 /cache/
+/results_dir/
