@@ -6,121 +6,149 @@ import numpy as np
 from typing import Dict, List, Any, Union, Optional
 from .distances import eval_optimality as _eval_optimality_core
 from .ensemble import ensemble_distances
-from attackbench.wandb_manager import download_precompiled_distances
+from attackbench.wandb_manager import download_optimal_distances
 
 
 def compute_local_optimality(
     attack_results: Dict[str, Any],
-    reference_results: Union[Dict[str, Any], List[Dict[str, Any]], None] = None,
-    threat_model: str = 'linf',
+    reference_results: Optional[List[Dict[str, Any]]] = None,
+    threat_model: Optional[str] = None,
     dataset: Optional[str] = None,
     model_name: Optional[str] = None,
-    use_wandb: bool = False
+    use_wandb: bool = True,
+    cache_dir: str = "./cache"
 ) -> Dict[str, float]:
     """
     Compute local optimality score for an attack (Stage 3 of AttackBench).
     
-    Optimality measures how close an attack is to the best known distances (ensemble lower bound).
-    Score is in [0, 1] where 1.0 = optimal (matches or beats ensemble).
+    Optimality measures how close an attack is to the best known distances (lower envelope).
+    Score is in [0, 1] where 1.0 = optimal (matches or beats the lower envelope).
+    
+    Metadata (dataset, model_name, threat_model, n_samples) is automatically extracted
+    from attack_results['metadata'] if available from run_attack().
     
     Args:
-        attack_results: Output from attackbench.run_attack()
-        reference_results: Reference distances for comparison. Can be:
-            - Single attack results dict (will use its distances)
-            - List of attack results (will compute ensemble)
-            - None (will try to download from W&B if use_wandb=True)
-        threat_model: Threat model ('linf', 'l0', 'l1', 'l2')
-        dataset: Dataset name (required if use_wandb=True)
-        model_name: Model name (required if use_wandb=True)
-        use_wandb: If True and reference_results is None, download best distances from W&B
+        attack_results: Output from attackbench.run_attack() - must contain 'metadata' block
+        reference_results: Optional list of attack results to compute ensemble as reference.
+            If provided, computes element-wise minimum (lower envelope) from these.
+            If None, downloads optimal distances from W&B (if use_wandb=True).
+        threat_model: Override threat model (default: extract from attack_results['metadata'])
+        dataset: Override dataset name (default: extract from attack_results['metadata'])
+        model_name: Override model name (default: extract from attack_results['metadata'])
+        use_wandb: If True and reference_results is None, download optimal distances from W&B
+        cache_dir: Local cache directory for W&B downloads
         
     Returns:
         Dictionary with:
             - 'optimality': Local optimality score [0, 1]
             - 'auc_attack': Area under curve for the attack
-            - 'auc_reference': Area under curve for reference
-            - 'reference_type': Type of reference used ('ensemble', 'single', 'wandb')
+            - 'auc_reference': Area under curve for reference (lower envelope)
+            - 'reference_type': Type of reference used ('ensemble_N', 'wandb_optimal')
+            - 'n_samples': Number of samples evaluated
             
     Example:
-        >>> # Compare to another attack
-        >>> results_pgd = run_attack(model, dataset, pgd, 'linf', device)
-        >>> results_apgd = run_attack(model, dataset, apgd, 'linf', device)
-        >>> opt = compute_local_optimality(results_pgd, reference_results=results_apgd)
-        >>> print(f"PGD optimality vs APGD: {opt['optimality']:.2%}")
+        >>> # Automatic: uses metadata from run_attack and downloads optimal from W&B
+        >>> results = run_attack(model, dataset, pgd, 'linf', device,
+        ...                      dataset_name='cifar10', model_name='Standard')
+        >>> opt = compute_local_optimality(results)
+        >>> print(f"Optimality: {opt['optimality']:.2%}")
         
-        >>> # Compare to ensemble of multiple attacks
+        >>> # Compare to ensemble of multiple attacks (computes lower envelope locally)
         >>> opt = compute_local_optimality(results_pgd, reference_results=[results_apgd, results_df])
-        
-        >>> # Download best distances from W&B
-        >>> opt = compute_local_optimality(results, dataset='cifar10', model_name='Standard', use_wandb=True)
     """
+    # Extract metadata from attack_results (populated by run_attack)
+    metadata = attack_results.get('metadata', {})
+    
+    # Use metadata or override with explicit parameters
+    threat_model = threat_model or metadata.get('threat_model')
+    dataset = dataset or metadata.get('dataset')
+    model_name = model_name or metadata.get('model_name')
+    
+    if threat_model is None:
+        raise ValueError(
+            "threat_model not found. Either pass it explicitly or ensure attack_results "
+            "contains 'metadata' block from run_attack(threat_model=...)"
+        )
+    
     # Extract attack distances
     attack_distances = np.array(attack_results.get('distances', {}).get(threat_model, []))
     if len(attack_distances) == 0:
         raise ValueError(f"No distances found for threat model '{threat_model}'")
     
-    # Determine reference distances
+    n_samples = len(attack_distances)
     reference_type = None
     
+    # Determine reference distances (lower envelope)
     if reference_results is not None:
-        # User provided reference(s)
-        if isinstance(reference_results, dict):
-            # Single reference attack
-            reference_distances = np.array(reference_results.get('distances', {}).get(threat_model, []))
-            reference_type = 'single'
-        elif isinstance(reference_results, list):
-            # Ensemble of multiple attacks
-            if len(reference_results) == 0:
-                raise ValueError("reference_results list is empty")
-            
-            # Compute ensemble (element-wise minimum)
-            distances_list = []
-            for result in reference_results:
-                dist = np.array(result.get('distances', {}).get(threat_model, []))
-                if len(dist) > 0:
-                    distances_list.append(dist)
-            
-            if len(distances_list) == 0:
-                raise ValueError("No valid distances in reference_results")
-            
-            # Start with first attack and iteratively compute minimum
-            reference_distances = distances_list[0]
-            for dist in distances_list[1:]:
-                reference_distances = ensemble_distances(reference_distances, dist)
-            
-            reference_type = f'ensemble_{len(distances_list)}'
-        else:
-            raise TypeError("reference_results must be dict or list of dicts")
-            
-    elif use_wandb:
-        # Download from W&B
-        if dataset is None or model_name is None:
-            raise ValueError("dataset and model_name required when use_wandb=True")
-        
-        # Try to find best distances on W&B
-        # This will search for the latest artifact for this scenario
-        try:
-            best_data = download_precompiled_distances(
-                dataset=dataset,
-                threat_model=threat_model,
-                model_name=model_name,
-                attack_name='ensemble',  # Try to find ensemble first
-                n_samples=len(attack_distances)
+        # User provided list of attacks - compute ensemble (lower envelope)
+        if not isinstance(reference_results, list):
+            raise TypeError(
+                "reference_results must be a list of attack results. "
+                "Single attack comparison is not supported - use a list of attacks "
+                "to compute the lower envelope, or set use_wandb=True to download "
+                "optimal distances from W&B."
             )
-            reference_distances = np.array(best_data.get('distances', {}).get(threat_model, []))
-            reference_type = 'wandb_ensemble'
-        except Exception:
-            # If ensemble not found, could try individual attacks
-            # For now, just raise an error
-            raise ValueError(f"No ensemble distances found on W&B for {dataset}/{model_name}/{threat_model}")
+        
+        if len(reference_results) == 0:
+            raise ValueError("reference_results list is empty")
+        
+        # Compute ensemble (element-wise minimum)
+        distances_list = []
+        for result in reference_results:
+            dist = np.array(result.get('distances', {}).get(threat_model, []))
+            if len(dist) > 0:
+                distances_list.append(dist)
+        
+        if len(distances_list) == 0:
+            raise ValueError("No valid distances in reference_results")
+        
+        # Start with first attack and iteratively compute minimum
+        reference_distances = distances_list[0]
+        for dist in distances_list[1:]:
+            reference_distances = ensemble_distances(reference_distances, dist)
+        
+        reference_type = f'ensemble_{len(distances_list)}'
+        
+    elif use_wandb:
+        # Download optimal distances (lower envelope) from W&B
+        if dataset is None or model_name is None:
+            raise ValueError(
+                "dataset and model_name required to download optimal distances from W&B. "
+                "Either pass them explicitly or ensure attack_results contains 'metadata' "
+                "block from run_attack(dataset_name=..., model_name=...)."
+            )
+        
+        # Download optimal distances artifact
+        best_data = download_optimal_distances(
+            dataset=dataset,
+            threat_model=threat_model,
+            model_name=model_name,
+            n_samples=n_samples,
+            cache_dir=cache_dir
+        )
+        
+        if best_data is None:
+            raise ValueError(
+                f"No optimal distances found on W&B for {dataset}/{threat_model}/{model_name}/{n_samples}. "
+                f"Upload optimal distances first using upload_optimal_distances()."
+            )
+        
+        reference_distances = np.array(best_data.get('distances', {}).get(threat_model, []))
+        if len(reference_distances) == 0:
+            raise ValueError(f"Downloaded data does not contain distances for threat model '{threat_model}'")
+        
+        reference_type = 'wandb_optimal'
     else:
-        raise ValueError("Must provide reference_results or set use_wandb=True")
+        raise ValueError(
+            "Must provide reference_results (list of attacks for ensemble) or set use_wandb=True "
+            "to download optimal distances from W&B."
+        )
     
     # Validate reference distances
     if len(reference_distances) == 0:
         raise ValueError("Reference distances are empty")
-    if len(reference_distances) != len(attack_distances):
-        raise ValueError(f"Length mismatch: attack has {len(attack_distances)} samples, "
+    if len(reference_distances) != n_samples:
+        raise ValueError(f"Length mismatch: attack has {n_samples} samples, "
                        f"reference has {len(reference_distances)} samples")
     
     # Compute optimality using core function

@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, List, Union
 # Configuration constants
 WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
+WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
 
 def upload_precompiled_distances(
     file_path: Union[str, Path] = None,
@@ -243,6 +244,251 @@ def _search_and_download(
         
     except Exception as e:
         print(f"Search failed: {e}")
+        return None
+
+
+# =============================================================================
+# OPTIMAL DISTANCES (Lower Envelope) Functions
+# =============================================================================
+
+def upload_optimal_distances(
+    file_path: Union[str, Path] = None,
+    optimal_data: Dict[str, Any] = None,
+    dataset: str = None,
+    threat_model: str = None,
+    model_name: str = None,
+    n_samples: int = None,
+    overwrite: bool = False
+) -> bool:
+    """
+    Upload optimal distances (lower envelope) to W&B.
+    
+    Two usage modes:
+    1. Pass file_path directly (file already exists)
+    2. Pass optimal_data + metadata (automatic file creation)
+    
+    Args:
+        file_path: Path to JSON file (optional if optimal_data provided)
+        optimal_data: Dictionary with optimal distances (optional if file_path provided)
+        dataset: Dataset name (e.g., 'cifar10')
+        threat_model: Threat model (e.g., 'linf', 'l2')
+        model_name: Model name (e.g., 'Standard')
+        n_samples: Number of samples (will be inferred from data if not provided)
+        overwrite: Whether to overwrite existing artifacts
+        
+    Returns:
+        True if upload successful, False otherwise
+        
+    Example:
+        >>> # Upload from file
+        >>> upload_optimal_distances('./optimal/cifar10-linf-Standard-1000.json')
+        
+        >>> # Upload from data
+        >>> upload_optimal_distances(
+        ...     optimal_data={'distances': {'linf': [0.1, 0.2, ...]}, ...},
+        ...     dataset='cifar10',
+        ...     threat_model='linf', 
+        ...     model_name='Standard'
+        ... )
+    """
+    
+    # Mode 2: Create file from optimal_data
+    if optimal_data is not None:
+        if not all([dataset, threat_model, model_name]):
+            print("Error: Must provide dataset, threat_model, model_name with optimal_data")
+            return False
+        
+        # Infer n_samples from data
+        if n_samples is None:
+            distances = optimal_data.get('distances', {}).get(threat_model, [])
+            n_samples = len(distances) if distances else 0
+        
+        if n_samples == 0:
+            print("Error: Could not determine n_samples from optimal_data")
+            return False
+        
+        # Create temp file
+        output_dir = Path('./temp_upload/optimal')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+        file_path = output_dir / f"{artifact_name}.json"
+        
+        # Add metadata to data
+        save_data = {
+            **optimal_data,
+            'metadata': {
+                'dataset': dataset,
+                'threat_model': threat_model,
+                'model_name': model_name,
+                'n_samples': n_samples,
+                'type': 'optimal_distances'
+            }
+        }
+        
+        with open(file_path, 'w') as f:
+            json.dump(save_data, f, indent=2)
+            
+    else:
+        # Mode 1: Use provided file_path
+        if file_path is None:
+            print("Error: Must provide either file_path or optimal_data")
+            return False
+        
+        file_path = Path(file_path)
+        if not file_path.exists():
+            print(f"Error: File not found: {file_path}")
+            return False
+        
+        # Extract metadata from file or filename
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            metadata = data.get('metadata', {})
+            dataset = metadata.get('dataset') or dataset
+            threat_model = metadata.get('threat_model') or threat_model
+            model_name = metadata.get('model_name') or model_name
+            n_samples = metadata.get('n_samples') or n_samples
+            
+            # Fallback: parse from filename
+            if not all([dataset, threat_model, model_name, n_samples]):
+                parts = file_path.stem.split('-')
+                if len(parts) >= 4:
+                    dataset = dataset or parts[0]
+                    threat_model = threat_model or parts[1]
+                    model_name = model_name or '-'.join(parts[2:-1])
+                    n_samples = n_samples or int(parts[-1])
+        except Exception as e:
+            print(f"Error: Could not extract metadata from file: {e}")
+            return False
+    
+    if not all([dataset, threat_model, model_name, n_samples]):
+        print("Error: Missing required metadata (dataset, threat_model, model_name, n_samples)")
+        return False
+    
+    # Create artifact name
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+    
+    print(f"Uploading optimal distances to W&B: {artifact_name}")
+    print(f"   File: {file_path}")
+    print(f"   Size: {Path(file_path).stat().st_size / 1024:.1f} KB")
+    
+    try:
+        # Check if artifact already exists
+        if not overwrite:
+            api = wandb.Api()
+            try:
+                existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
+                print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
+                return False
+            except:
+                pass  # Artifact doesn't exist, continue
+        
+        # Upload to W&B
+        with wandb.init(project=WANDB_PROJECT_OPTIMAL, entity=WANDB_ENTITY, job_type="upload-optimal") as run:
+            artifact = wandb.Artifact(
+                name=artifact_name,
+                type="optimal_distances",
+                description=f"Optimal distances (lower envelope) for {model_name} ({dataset}, {threat_model})",
+                metadata={
+                    "dataset": dataset,
+                    "model": model_name,
+                    "threat_model": threat_model,
+                    "n_samples": n_samples,
+                    "type": "optimal_distances",
+                    "file_size": Path(file_path).stat().st_size
+                }
+            )
+            artifact.add_file(str(file_path))
+            run.log_artifact(artifact)
+        
+        print(f"Successfully uploaded optimal distances: {artifact_name}")
+        return True
+        
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        return False
+
+
+def download_optimal_distances(
+    dataset: str,
+    threat_model: str,
+    model_name: str,
+    n_samples: int,
+    cache_dir: str = "./cache",
+    force_download: bool = False
+) -> Optional[Dict[str, Any]]:
+    """
+    Download optimal distances (lower envelope) from W&B.
+    
+    Args:
+        dataset: Dataset name (e.g., 'cifar10')
+        threat_model: Threat model (e.g., 'linf', 'l2')
+        model_name: Model name (e.g., 'Standard')
+        n_samples: Number of samples
+        cache_dir: Local cache directory
+        force_download: Force re-download even if cached
+        
+    Returns:
+        Dictionary with optimal distances, or None if not found
+        
+    Example:
+        >>> optimal = download_optimal_distances('cifar10', 'linf', 'Standard', 1000)
+        >>> distances = optimal['distances']['linf']
+    """
+    artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+    file_name = f"{artifact_name}.json"
+    
+    # Use separate cache folder for optimal distances
+    cache_path = Path(cache_dir) / "optimal" / dataset
+    cache_path.mkdir(parents=True, exist_ok=True)
+    local_file = cache_path / file_name
+    
+    # 1. Check local cache first (unless forced)
+    if not force_download and local_file.exists():
+        try:
+            print(f"Loading optimal distances from cache: {local_file}")
+            with open(local_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"Warning: Corrupted cache file, re-downloading...")
+    
+    # 2. Download from W&B
+    print(f"Downloading optimal distances from W&B: {artifact_name}")
+    
+    try:
+        api = wandb.Api()
+        artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
+        
+        print(f"   Found artifact: {artifact.name} (v{artifact.version})")
+        print(f"   Size: {artifact.size / 1024:.1f} KB")
+        
+        # Download to cache
+        download_path = artifact.download(root=str(cache_path))
+        
+        # Find the JSON file
+        downloaded_file = Path(download_path) / file_name
+        if not downloaded_file.exists():
+            # Fallback: look for any JSON file
+            json_files = list(Path(download_path).glob("*.json"))
+            downloaded_file = json_files[0] if json_files else None
+        
+        if not downloaded_file or not downloaded_file.exists():
+            print(f"Error: No JSON file found in downloaded artifact")
+            return None
+        
+        # Load and return data
+        with open(downloaded_file, 'r') as f:
+            data = json.load(f)
+        
+        print(f"Successfully downloaded optimal distances")
+        return data
+        
+    except wandb.errors.CommError:
+        print(f"Error: Optimal distances artifact not found: {artifact_name}")
+        return None
+    except Exception as e:
+        print(f"Download failed: {e}")
         return None
 
 

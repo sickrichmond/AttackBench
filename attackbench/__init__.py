@@ -32,7 +32,9 @@ from .wandb_manager import (
     upload_precompiled_distances,
     download_precompiled_distances, 
     upload_directory,
-    list_available_distances
+    list_available_distances,
+    upload_optimal_distances,
+    download_optimal_distances,
 )
 
 # Stage 3: Optimality computation (user-friendly API)
@@ -47,7 +49,7 @@ from attack_evaluation.metrics import (
 )
 
 # W&B utils for database reading
-from .wandb_utils import get_precompiled_distances
+from .wandb_utils import get_precompiled_distances, get_optimal_distances
 
 __all__ = [
     'run_attack',
@@ -80,7 +82,11 @@ __all__ = [
     'download_precompiled_distances',
     'upload_directory', 
     'list_available_distances',
-    'get_precompiled_distances'
+    'get_precompiled_distances',
+    # Optimal distances (lower envelope)
+    'upload_optimal_distances',
+    'download_optimal_distances',
+    'get_optimal_distances',
 ]
 
 if analysis_available:
