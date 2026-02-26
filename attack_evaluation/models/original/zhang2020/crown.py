@@ -2,7 +2,7 @@ import os
 import tarfile
 
 import requests
-from ....model_utils import normalize_model
+from ....adv_lib_sub import normalize_model
 from torch import nn
 
 from .model_defs_gowal import IBP_large, model_cnn_4layer

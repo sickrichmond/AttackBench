@@ -16,7 +16,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from ..distances import l0_distances, l1_distances, l2_distances, linf_distances
+from ..adv_lib_sub import l0_distances, l1_distances, l2_distances, linf_distances
 
 # Distance function mapping
 DISTANCE_FUNCTIONS = {

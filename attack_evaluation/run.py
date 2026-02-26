@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch import nn
 import numpy as np
 
-from .distances import l0_distances, l1_distances, l2_distances, linf_distances
+from .adv_lib_sub import l0_distances, l1_distances, l2_distances, linf_distances
 
 # Import RobustBench components
 from robustbench import load_model as rb_load_model
