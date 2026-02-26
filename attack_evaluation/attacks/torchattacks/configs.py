@@ -7,7 +7,7 @@ from torchattacks import APGD, APGDT, AutoAttack, CW, DeepFool, FAB, FGSM, PGD, 
 from .wrapper import TorchattacksMinimalWrapper, torchattacks_wrapper
 from .. import minimal_init_eps, minimal_search_steps
 
-_prefix = 'torchattacks'
+_prefix = 'ta'
 _wrapper = torchattacks_wrapper
 
 

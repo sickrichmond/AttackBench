@@ -186,7 +186,7 @@ def run_attack(model: BenchModel,
     """
     
     # Always import _default_metrics for tracking
-    from adv_lib.utils.attack_utils import _default_metrics
+    from .attack_utils import _default_metrics
     
     # Use default metrics if none provided
     if metrics is None:

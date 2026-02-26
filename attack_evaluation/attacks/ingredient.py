@@ -4,23 +4,39 @@ from collections import defaultdict
 from functools import partial
 from typing import Callable
 
-from .adv_lib import configs as adv_lib_configs
 from .art import configs as art_configs
 from .cleverhans import configs as cleverhans_configs
-from .deeprobust import configs as deeprobust_configs
 from .foolbox import configs as foolbox_configs
 from .original import configs as original_configs
 from .torchattacks import configs as torchattacks_configs
 
+try:
+    from .adv_lib import configs as adv_lib_configs
+    _has_adv_lib = True
+except ImportError:  # pragma: no cover - optional dependency
+    adv_lib_configs = None
+    _has_adv_lib = False
+
+try:
+    from .deeprobust import configs as deeprobust_configs
+    _has_deeprobust = True
+except ImportError:  # pragma: no cover - optional dependency
+    deeprobust_configs = None
+    _has_deeprobust = False
+
 library_modules = {
-    'adv_lib': adv_lib_configs,
     'art': art_configs,
     'cleverhans': cleverhans_configs,
-    'deeprobust': deeprobust_configs,
     'foolbox': foolbox_configs,
     'original': original_configs,
     'torchattacks': torchattacks_configs,
 }
+
+if _has_adv_lib:
+    library_modules['adv_lib'] = adv_lib_configs
+
+if _has_deeprobust:
+    library_modules['deeprobust'] = deeprobust_configs
 
 # Build configuration and getter functions from modules
 attack_configs = defaultdict(dict)  # Store config functions

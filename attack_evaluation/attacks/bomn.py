@@ -16,7 +16,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from adv_lib.distances.lp_norms import l0_distances, l1_distances, l2_distances, linf_distances
+from ..distances import l0_distances, l1_distances, l2_distances, linf_distances
 
 # Distance function mapping
 DISTANCE_FUNCTIONS = {
@@ -27,11 +27,51 @@ DISTANCE_FUNCTIONS = {
 }
 
 
-def _get_attack_name(attack: Callable) -> str:
+def _extract_library_from_attack(attack: Callable) -> str:
+    """Extract library name from attack callable by inspecting its module."""
+    # Get the function object (handle functools.partial)
+    func = attack.func if hasattr(attack, 'func') else attack
+    
+    # Get module path
+    module_path = getattr(func, '__module__', '')
+    
+    # Map common module patterns to library names
+    library_patterns = {
+        'art.': 'art',
+        'foolbox.': 'foolbox',
+        'adv_lib.': 'adv_lib',
+        'torchattacks.': 'torchattacks',
+        'cleverhans.': 'cleverhans',
+        'deeprobust.': 'deeprobust',
+        'attack_evaluation.attacks.art': 'art',
+        'attack_evaluation.attacks.foolbox': 'foolbox',
+        'attack_evaluation.attacks.adv_lib': 'adv_lib',
+        'attack_evaluation.attacks.torchattacks': 'torchattacks',
+        'attack_evaluation.attacks.cleverhans': 'cleverhans',
+        'attack_evaluation.attacks.deeprobust': 'deeprobust',
+        'attack_evaluation.attacks.original': 'original',
+    }
+    
+    for pattern, lib_name in library_patterns.items():
+        if pattern in module_path:
+            return lib_name
+    
+    return 'unknown'
+
+
+def _get_attack_name(attack: Callable, lib: str = None) -> str:
     """Extract readable name from attack callable."""
     if hasattr(attack, 'func'):  # functools.partial
-        return getattr(attack.func, '__name__', 'unknown')
-    return getattr(attack, '__name__', 'unknown')
+        name = getattr(attack.func, '__name__', 'unknown')
+    else:
+        name = getattr(attack, '__name__', 'unknown')
+    
+    # Auto-detect library if not provided
+    if lib is None:
+        lib = _extract_library_from_attack(attack)
+    
+    # Add library suffix
+    return f"{name}-{lib}"
 
 
 def bomn_attack(
@@ -39,6 +79,7 @@ def bomn_attack(
     dataset: DataLoader,
     attacks: List[Callable],
     threat_model: str,
+    attack_libs: Optional[List[str]] = None,
     device: Optional[torch.device] = None,
     verbose: bool = True,
     **kwargs
@@ -53,18 +94,21 @@ def bomn_attack(
         dataset: DataLoader with inputs to attack
         attacks: List of attack callables (e.g., [pgd, apgd, deepfool])
         threat_model: Norm to use ('l0', 'l1', 'l2', 'linf')
+        attack_libs: Optional list of library names for each attack.
+                     If not provided, will auto-detect from attack module path.
+                     Names will be formatted as 'attackname-library'
         device: Device to run on
         verbose: Print sample-by-sample results
         **kwargs: Additional arguments passed to attacks
         
     Returns:
         Dict with per-sample results:
-        - distances: Dict[norm -> distances] - best distance for each sample
-        - best_optim_distances: Same as distances
+        - distances: List[float] - best distance for each sample
+        - threat_model: str - the threat model used
         - adv_success: List[bool] - attack success per sample
         - ori_success: List[bool] - original correctness per sample
         - best_attack_indices: List[int] - which attack won each sample
-        - attack_names: List[str] - names of attacks
+        - attack_names: List[str] - names of attacks (format: 'name-lib')
     """
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -72,8 +116,17 @@ def bomn_attack(
     if threat_model not in DISTANCE_FUNCTIONS:
         raise ValueError(f"Unknown threat model: {threat_model}. Must be one of {list(DISTANCE_FUNCTIONS.keys())}")
     
+    if attack_libs is not None and len(attack_libs) != len(attacks):
+        raise ValueError(f"attack_libs length ({len(attack_libs)}) must match attacks length ({len(attacks)})")
+    
     distance_fn = DISTANCE_FUNCTIONS[threat_model]
-    attack_names = [_get_attack_name(attack) for attack in attacks]
+    
+    # Generate attack names with library suffix (auto-detect if not provided)
+    if attack_libs:
+        attack_names = [_get_attack_name(attack, lib) for attack, lib in zip(attacks, attack_libs)]
+    else:
+        # Auto-detect library from attack module
+        attack_names = [_get_attack_name(attack) for attack in attacks]
     
     if verbose:
         print(f"\n{'='*70}")
@@ -193,10 +246,15 @@ def bomn_attack(
     
     if verbose:
         print(f"{'-'*70}\n")
+        print(f"Total: {len(all_best_distances)} samples")
+        print(f"Successful attacks: {sum(all_adv_success)}/{len(all_adv_success)} ({100*sum(all_adv_success)/len(all_adv_success):.1f}%)")
+        if any(all_adv_success):
+            print(f"Mean distance (successful): {np.mean([d for d, s in zip(all_best_distances, all_adv_success) if s]):.6f}")
+        print()
     
     return {
-        'distances': {threat_model: all_best_distances},
-        'best_optim_distances': {threat_model: all_best_distances},
+        'distances': all_best_distances,
+        'threat_model': threat_model,
         'adv_success': all_adv_success,
         'ori_success': all_ori_success,
         'best_attack_indices': all_best_attack_indices,

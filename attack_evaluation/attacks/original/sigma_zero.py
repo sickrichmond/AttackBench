@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
-from adv_lib.utils.losses import difference_of_logits
+from ...losses import difference_of_logits
 from foolbox import PyTorchModel
 from foolbox.attacks.dataset_attack import DatasetAttack
 from torch import Tensor

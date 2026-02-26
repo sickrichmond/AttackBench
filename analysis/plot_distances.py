@@ -8,6 +8,12 @@ from collections import defaultdict
 import numpy as np
 from matplotlib import pyplot as plt, ticker
 
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = _trapz
+
 from compile import compile_scenario
 from read import read_distances, load_best_distances
 from utils import top_k_attacks
@@ -101,7 +107,7 @@ if __name__ == '__main__':
         # get quantities for optimality calculation
         clean_acc = np.count_nonzero(best_distances) / len(best_distances)
         max_dist = np.amax(distances)
-        best_area = np.trapz(robust_acc, distances)
+        best_area = _trapz(robust_acc, distances)
         plot_xlim = max_dist * 1.2
 
         attacks_to_plot = {}
@@ -118,7 +124,7 @@ if __name__ == '__main__':
                 robust_acc[-1] = robust_acc[-2]
                 robust_acc_clipped[-1] = robust_acc_clipped[-2]
 
-            area = np.trapz(robust_acc_clipped, distances_clipped)
+            area = _trapz(robust_acc_clipped, distances_clipped)
             optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
 
             attack_label = attack_folder.relative_to(attack_folder.parents[1]).as_posix()
@@ -266,7 +272,7 @@ if __name__ == '__main__':
         # get quantities for optimality calculation
         clean_acc = np.count_nonzero(best_distances) / len(best_distances)
         max_dist = np.amax(distances)
-        best_area = np.trapz(robust_acc, distances)
+        best_area = _trapz(robust_acc, distances)
         plot_xlim = max_dist * 1.2
 
         attacks_to_plot = {}
@@ -283,7 +289,7 @@ if __name__ == '__main__':
                 robust_acc[-1] = robust_acc[-2]
                 robust_acc_clipped[-1] = robust_acc_clipped[-2]
 
-            area = np.trapz(robust_acc_clipped, distances_clipped)
+            area = _trapz(robust_acc_clipped, distances_clipped)
             optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
 
             attack_label = attack_folder.relative_to(attack_folder.parents[1]).as_posix()

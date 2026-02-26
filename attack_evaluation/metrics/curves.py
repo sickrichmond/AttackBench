@@ -5,6 +5,12 @@ Ported from analysis/plot_distances.py logic
 import numpy as np
 from typing import Dict, List, Any, Optional, Tuple
 
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
+
 
 def compute_robust_accuracy_curve(distances: np.ndarray, success_mask: np.ndarray, 
                                  num_points: int = 100) -> Dict[str, List[float]]:
@@ -42,7 +48,7 @@ def compute_auc_robust_accuracy(thresholds: List[float], robust_accuracies: List
     if len(thresholds) < 2 or len(robust_accuracies) < 2:
         return 0.0
     
-    return float(np.trapz(robust_accuracies, thresholds))
+    return float(_trapz(robust_accuracies, thresholds))
 
 
 def compute_certified_robustness_metrics(distances: np.ndarray, success_mask: np.ndarray, 

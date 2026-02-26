@@ -158,3 +158,8 @@ dmypy.json
 #precompiled distancies and cache
 /cache/
 /results_dir/
+
+#experiments and test results
+/bomn_results/
+/results_envelope/
+/scripts/private_scripts/

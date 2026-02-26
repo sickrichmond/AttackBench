@@ -6,7 +6,13 @@ import numpy as np
 from typing import Dict, List, Any, Union, Optional
 from .distances import eval_optimality as _eval_optimality_core
 from .ensemble import ensemble_distances
-from attackbench.wandb_manager import download_optimal_distances
+# NOTE: download_optimal_distances is imported lazily inside functions to avoid circular import
+
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
 
 
 def compute_local_optimality(
@@ -118,6 +124,9 @@ def compute_local_optimality(
                 "block from run_attack(dataset_name=..., model_name=...)."
             )
         
+        # Lazy import to avoid circular dependency
+        from attackbench.wandb_manager import download_optimal_distances
+        
         # Download optimal distances artifact
         best_data = download_optimal_distances(
             dataset=dataset,
@@ -171,7 +180,7 @@ def _compute_auc(distances: np.ndarray) -> float:
     """Helper to compute AUC under robust accuracy curve."""
     unique_distances, counts = np.unique(distances, return_counts=True)
     robust_acc = 1 - counts.cumsum() / len(distances)
-    auc = np.trapz(robust_acc, unique_distances)
+    auc = _trapz(robust_acc, unique_distances)
     return float(auc)
 
 

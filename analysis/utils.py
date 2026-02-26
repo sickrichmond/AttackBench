@@ -4,6 +4,12 @@ import numpy as np
 import json
 from itertools import product
 
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
+
 Scenario = namedtuple('Scenario', ['dataset', 'batch_size', 'threat_model', 'model'])
 
 _MAX_GAIN = 2.1
@@ -77,7 +83,7 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> np.ndarr
     # get quantities for optimality calculation
     clean_acc = np.count_nonzero(best_distances) / len(best_distances)
     max_dist = np.amax(distances)
-    best_area = np.trapz(robust_acc, distances)
+    best_area = _trapz(robust_acc, distances)
 
     distances, counts = np.unique(adv_distances, return_counts=True)
     robust_acc = 1 - counts.cumsum() / len(adv_distances)
@@ -85,7 +91,7 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> np.ndarr
     distances_clipped, counts = np.unique(adv_distances.clip(min=None, max=max_dist), return_counts=True)
     robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
 
-    area = np.trapz(robust_acc_clipped, distances_clipped)
+    area = _trapz(robust_acc_clipped, distances_clipped)
     optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
 
     return optimality

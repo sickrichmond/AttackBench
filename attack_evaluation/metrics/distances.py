@@ -5,6 +5,12 @@ Includes optimality computation using best precompiled distances.
 import numpy as np
 from typing import Dict, List, Any, Optional
 
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
+
 
 def compute_distance_statistics(distances: List[float]) -> Dict[str, float]:
     """Compute comprehensive distance statistics from raw distance data."""
@@ -64,7 +70,7 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     # Get quantities for optimality calculation
     clean_acc = np.count_nonzero(best_distances) / len(best_distances)
     max_dist = np.amax(distances)
-    best_area = np.trapz(robust_acc, distances)
+    best_area = _trapz(robust_acc, distances)
 
     # Compute robust accuracy for attack distances (not used directly)
     distances, counts = np.unique(adv_distances, return_counts=True)
@@ -75,7 +81,7 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
 
     # Calculate area under clipped curve
-    area = np.trapz(robust_acc_clipped, distances_clipped)
+    area = _trapz(robust_acc_clipped, distances_clipped)
     
     # Calculate optimality (normalized AUC difference)
     optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)

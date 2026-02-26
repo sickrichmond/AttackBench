@@ -4,7 +4,6 @@ from typing import Callable, Optional
 from art.attacks.evasion import (
     AutoProjectedGradientDescent,
     BasicIterativeMethod,
-    BrendelBethgeAttack,
     CarliniL2Method,
     CarliniLInfMethod,
     DeepFool,
@@ -13,6 +12,13 @@ from art.attacks.evasion import (
     ProjectedGradientDescent,
     SaliencyMapMethod
 )
+
+try:
+    from art.attacks.evasion import BrendelBethgeAttack
+    _brendel_import_error = None
+except ImportError as err:  # pragma: no cover - depends on ART version
+    BrendelBethgeAttack = None
+    _brendel_import_error = err
 
 from .wrapper import ArtMinimalWrapper, art_wrapper
 from .. import minimal_init_eps, minimal_search_steps
@@ -109,6 +115,11 @@ def art_bb():
 
 def get_art_bb(threat_model: str, overshoot: float, num_steps: int, step_size: float, lr_decay: float,
                lr_num_decay: int, momentum: float, num_binary_search_steps: int, init_size: int) -> Callable:
+    if BrendelBethgeAttack is None:
+        raise ImportError(
+            "BrendelBethgeAttack is not available in the installed adversarial-robustness-toolbox version. "
+            "Install a release that still provides it or drop the 'bb' attack from your configuration."
+        ) from _brendel_import_error
     return partial(BrendelBethgeAttack, norm=_norms[threat_model], overshoot=overshoot, steps=num_steps, lr=step_size,
                    lr_decay=lr_decay, lr_num_decay=lr_num_decay, momentum=momentum,
                    binary_search_steps=num_binary_search_steps, init_size=init_size)

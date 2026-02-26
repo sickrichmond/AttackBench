@@ -8,6 +8,12 @@ from scipy.stats import wilcoxon, ks_2samp
 
 import numpy as np
 
+# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
+
 from compile import compile_scenario
 from read import read_distances, read_info
 from utils import top_k_attacks
@@ -92,7 +98,7 @@ if __name__ == '__main__':
         # get quantities for optimality calculation
         clean_acc = np.count_nonzero(best_distances) / len(best_distances)
         max_dist = np.amax(distances)
-        best_area = np.trapz(robust_acc, distances)
+        best_area = _trapz(robust_acc, distances)
 
         attacks_to_plot = {}
         for attack_folder, info in sorted(to_plot[scenario]):
@@ -103,7 +109,7 @@ if __name__ == '__main__':
             distances_clipped, counts = np.unique(adv_distances.clip(min=None, max=max_dist), return_counts=True)
             robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
 
-            area = np.trapz(robust_acc_clipped, distances_clipped)
+            area = _trapz(robust_acc_clipped, distances_clipped)
             optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
 
             attack_label = attack_folder.relative_to(attack_folder.parents[1]).as_posix()

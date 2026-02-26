@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=70.0.0", "wheel", "setuptools_scm[toml]>=6"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,34 +12,46 @@ authors = [
 ]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.9,<3.10"
+requires-python = ">=3.9,<3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "torch==1.12.1",
-    "torchvision==0.13.1",
-    "matplotlib==3.5.1",
-    "pandas==1.3.5",
-    "scipy<1.8.0",
-    "numpy>=1.21.0,<1.25.0", 
-    "tqdm==4.56.2",
-    "wget==3.2",
+    # Relaxed constraints to allow using pre-installed PyTorch versions (e.g., on Colab)
+    # This prevents downgrading to CPU-only versions or breaking GPU support.
+    "torch>=2.4",
+    "torchvision>=0.19",
+    "matplotlib>=3.5.1",
+    "pandas>=1.4.0",
+    "scipy>=1.8.0",
+    "numpy>=1.21.0",  # Removed upper bound <1.27.0 to support Numpy 2.0+ on modern environments
+    "tqdm>=4.56.2",
+    "wget>=3.2",
     "wandb>=0.15.0",
+    "setuptools>=65.0.0,<71",  # Required for pkg_resources (used by robustbench), <71 for Python 3.12 compatibility
 ]
 
 [project.optional-dependencies]
-# Attack package - enables all adversarial attack libraries
+# Attack package - enables all adversarial attack libraries (except deeprobust)
 attacks = [
     "adversarial-robustness-toolbox",
     "foolbox",
-    "deeprobust",
     "torchattacks",
     "cleverhans==4.0.0",
-    "robustbench @ git+https://github.com/RobustBench/robustbench.git",
-    "adv-lib @ git+https://github.com/jeromerony/adversarial-library.git",
-    "numpy>=1.21.0,<1.25.0",    # AGGIUNTO
+    "robustbench>=1.1",  # Now using PyPI version instead of git link
+    # Note: 'adv-lib' is removed as it is not on PyPI. Users must install it manually via git.
+]
+
+# DeepRobust attacks (requires scipy<1.8.0, incompatible with Python 3.10+)
+# Only install this on Python 3.9 with: pip install -e ".[deeprobust]"
+deeprobust = [
+    "deeprobust",
+    "scipy>=1.5.0,<1.8.0",
 ]
 
 # Dataset package - enables loading of additional datasets
@@ -52,7 +64,7 @@ datasets = [
 models = [
     "timm>=0.9.0",
     "transformers>=4.20.0",
-    "robustbench @ git+https://github.com/RobustBench/robustbench.git",
+    "robustbench>=1.1",
     "pretrainedmodels>=0.7.4",
     "pillow>=8.0.0",
 ]
@@ -63,50 +75,46 @@ metrics = [
     "seaborn>=0.11.0",
     "plotly>=5.0.0",
     "tabulate>=0.9.0",
-    "numpy>=1.21.0,<1.25.0",
 ]
 
-# Complete package - includes all optional dependencies
+# Complete package - includes all optional dependencies (except deeprobust)
 all = [
     "adversarial-robustness-toolbox",
     "foolbox",
-    "deeprobust",
-    "torchattacks", 
+    "torchattacks",
     "cleverhans==4.0.0",
-    "robustbench @ git+https://github.com/RobustBench/robustbench.git",
-    "adv-lib @ git+https://github.com/jeromerony/adversarial-library.git",
+    "robustbench>=1.1",
     "timm>=0.9.0",
     "transformers>=4.20.0",
-    "pretrainedmodels>=0.7.4", 
+    "pretrainedmodels>=0.7.4",
     "scikit-learn>=1.0.0",
     "seaborn>=0.11.0",
     "plotly>=5.0.0",
     "tabulate>=0.9.0",
     "pillow>=8.0.0",
     "requests>=2.25.0",
-    "numpy>=1.21.0,<1.25.0",
+    # Note: 'adv-lib' is excluded here too.
 ]
 
 # Development package
 dev = [
     "pytest>=6.0",
     "black>=22.0",
-    "isort>=5.0", 
+    "isort>=5.0",
     "flake8>=4.0",
 ]
 
 # Documentation package
 docs = [
-    "sphinx>=5.0.0",
-    "sphinx-rtd-theme>=1.2.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
     "sphinx-autodoc-typehints>=1.19.0",
-    "myst-parser>=1.0.0",
+    "myst-parser>=2.0.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["attackbench*", "attack_evaluation*", "analysis*"] 
+include = ["attackbench*", "attack_evaluation*", "analysis*"]
 
 [project.scripts]
 run_attack = "attack_evaluation.run:main"
-

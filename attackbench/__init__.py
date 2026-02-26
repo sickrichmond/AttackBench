@@ -1,6 +1,13 @@
-from attack_evaluation.run import run_attack, get_stats  # Import from run.py
-# OR if you prefer from metrics package:
-# from attack_evaluation.metrics.analysis import get_stats
+# Lazy imports to avoid circular dependencies
+def run_attack(*args, **kwargs):
+    """Run an adversarial attack. See attack_evaluation.run.run_attack for details."""
+    from attack_evaluation.run import run_attack as _run_attack
+    return _run_attack(*args, **kwargs)
+
+def get_stats(*args, **kwargs):
+    """Get stats from attack results. See attack_evaluation.run.get_stats for details."""
+    from attack_evaluation.run import get_stats as _get_stats
+    return _get_stats(*args, **kwargs)
 
 # Version info
 __version__ = "1.0.0"
@@ -37,16 +44,31 @@ from .wandb_manager import (
     download_optimal_distances,
 )
 
-# Stage 3: Optimality computation (user-friendly API)
-from attack_evaluation.metrics import compute_local_optimality, compare_attacks_optimality
+# Stage 3: Optimality computation (lazy import to avoid circular dependency)
+def compute_local_optimality(*args, **kwargs):
+    from attack_evaluation.metrics import compute_local_optimality as _compute_local_optimality
+    return _compute_local_optimality(*args, **kwargs)
 
-# Stage 4-5: Global Optimality & Ranking (user-friendly API)
-from attack_evaluation.metrics import (
-    compute_global_optimality,
-    create_attack_leaderboard,
-    compare_attacks_global,
-    format_leaderboard
-)
+def compare_attacks_optimality(*args, **kwargs):
+    from attack_evaluation.metrics import compare_attacks_optimality as _compare_attacks_optimality
+    return _compare_attacks_optimality(*args, **kwargs)
+
+# Stage 4-5: Global Optimality & Ranking (lazy import to avoid circular dependency)
+def compute_global_optimality(*args, **kwargs):
+    from attack_evaluation.metrics import compute_global_optimality as _compute_global_optimality
+    return _compute_global_optimality(*args, **kwargs)
+
+def create_attack_leaderboard(*args, **kwargs):
+    from attack_evaluation.metrics import create_attack_leaderboard as _create_attack_leaderboard
+    return _create_attack_leaderboard(*args, **kwargs)
+
+def compare_attacks_global(*args, **kwargs):
+    from attack_evaluation.metrics import compare_attacks_global as _compare_attacks_global
+    return _compare_attacks_global(*args, **kwargs)
+
+def format_leaderboard(*args, **kwargs):
+    from attack_evaluation.metrics import format_leaderboard as _format_leaderboard
+    return _format_leaderboard(*args, **kwargs)
 
 # W&B utils for database reading
 from .wandb_utils import get_precompiled_distances, get_optimal_distances

@@ -1,21 +1,31 @@
 from functools import partial
 from typing import Callable, Optional
 
-from adv_lib.attacks import (
-    alma,
-    apgd,
-    apgd_targeted,
-    carlini_wagner_l2,
-    carlini_wagner_linf,
-    ddn,
-    fab,
-    fmn,
-    pdgd,
-    pdpgd,
-    pgd_linf,
-    tr,
-    vfga,
-)
+try:
+    from adv_lib.attacks import (
+        alma,
+        apgd,
+        apgd_targeted,
+        carlini_wagner_l2,
+        carlini_wagner_linf,
+        ddn,
+        fab,
+        fmn,
+        pdgd,
+        pdpgd,
+        pgd_linf,
+        tr,
+        vfga,
+    )
+    _has_adv_lib = True
+except ImportError:
+    # adv_lib is not installed - this is an optional dependency
+    # Users must install it manually via: pip install git+https://github.com/jeromerony/adversarial-library
+    _has_adv_lib = False
+    
+    # Define dummy functions to prevent module-level errors
+    alma = apgd = apgd_targeted = carlini_wagner_l2 = carlini_wagner_linf = None
+    ddn = fab = fmn = pdgd = pdpgd = pgd_linf = tr = vfga = None
 
 from .wrapper import adv_lib_minimal_wrapper, adv_lib_wrapper
 from .. import minimal_init_eps, minimal_search_steps
