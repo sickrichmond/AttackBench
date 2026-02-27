@@ -22,8 +22,15 @@ from attack_evaluation.models.ingredient import get_model
 # BoMN (Best-of-MinNorm) composite attack
 from attack_evaluation.attacks.bomn import bomn_attack
 
-# RobustBench integration
-from robustbench import load_model
+# RobustBench integration — wrapped to attach metadata for auto-extraction in run_attack
+def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
+    """Load a RobustBench model and attach AttackBench metadata for automatic extraction."""
+    from robustbench import load_model as _rb_load_model
+    model = _rb_load_model(model_name=model_name, dataset=dataset, threat_model=threat_model, **kwargs)
+    # Attach metadata so _extract_metadata() in run_attack can read them automatically
+    model._attackbench_model = model_name
+    model._attackbench_dataset = dataset
+    return model
 
 # EXPORT EXISTING ANALYSIS FUNCTIONS
 try:

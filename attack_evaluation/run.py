@@ -45,14 +45,21 @@ def _extract_metadata(model, dataset, attack):
         tuple: (dataset_name, model_name, attack_name, attack_lib)
                Any value may be None if extraction fails.
     """
-    # Extract dataset name from DataLoader
+    # Extract dataset name from DataLoader (set by get_loader)
     dataset_name = getattr(dataset, '_attackbench_dataset', None)
-    
-    # Extract model name from model
+
+    # Extract model name from model (set by attackbench.load_model / get_model)
     model_name = getattr(model, '_attackbench_model', None)
-    # Fallback: try model.model for wrapped models
+    # Fallback: try model.model for BenchModel-wrapped models
     if model_name is None and hasattr(model, 'model'):
         model_name = getattr(model.model, '_attackbench_model', None)
+
+    # Fallback: read dataset from model if loader didn't provide it
+    # (set by attackbench.load_model which receives dataset as parameter)
+    if dataset_name is None:
+        dataset_name = getattr(model, '_attackbench_dataset', None)
+        if dataset_name is None and hasattr(model, 'model'):
+            dataset_name = getattr(model.model, '_attackbench_dataset', None)
     
     # Extract attack name and lib from attack callable
     attack_name = getattr(attack, '_attackbench_name', None)
@@ -207,7 +214,8 @@ def run_attack(
     
     # Check for cached precompiled distances on W&B
     if use_cached and all([dataset_name, model_name, attack_name, attack_lib]):
-        print(f"[AttackBench] Checking W&B for cached distances: {dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}")
+        key = f"{dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}".lower()
+        print(f"[AttackBench] Checking W&B for cached distances: {key}")
         
         cached_data = get_precompiled_distances(
             dataset=dataset_name,

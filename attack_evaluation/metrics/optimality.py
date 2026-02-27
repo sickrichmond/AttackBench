@@ -138,8 +138,12 @@ def compute_local_optimality(
         
         if best_data is None:
             raise ValueError(
-                f"No optimal distances found on W&B for {dataset}/{threat_model}/{model_name}/{n_samples}. "
-                f"Upload optimal distances first using upload_optimal_distances()."
+                f"Could not load optimal distances for {dataset}/{threat_model}/{model_name}/{n_samples}. "
+                "This can happen if:\n"
+                "  1. W&B credentials are not configured (run 'wandb login' or set WANDB_API_KEY)\n"
+                "  2. The optimal distances artifact doesn't exist on W&B\n"
+                "Alternatively, compute optimality locally by passing reference_results="
+                "(list of attack results to use as reference)."
             )
         
         reference_distances = np.array(best_data.get('distances', {}).get(threat_model, []))

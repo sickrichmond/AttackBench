@@ -2,25 +2,61 @@ import os
 import wandb
 import json
 from pathlib import Path
+from typing import Optional
 
 # Configuration constants
 WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
 
-def _get_wandb_api() -> wandb.Api:
-    """
-    Return a W&B API client.
 
-    Uses the caller's existing credentials (WANDB_API_KEY env var or ~/.netrc)
-    when available. Falls back to anonymous access for public projects, so users
-    on Colab or fresh environments are never prompted for a login.
+def _has_wandb_credentials() -> bool:
+    """Check if W&B credentials are available (without prompting)."""
+    # Check environment variables
+    if os.environ.get("WANDB_API_KEY") or os.environ.get("ATTACKBENCH_WANDB_KEY"):
+        return True
+    # Check netrc file (where wandb login stores credentials)
+    netrc_path = Path.home() / ".netrc"
+    if netrc_path.exists():
+        try:
+            content = netrc_path.read_text()
+            if "api.wandb.ai" in content:
+                return True
+        except:
+            pass
+    return False
+
+
+def _get_wandb_api(require_auth: bool = False) -> Optional[wandb.Api]:
     """
-    if os.environ.get("WANDB_API_KEY"):
-        return wandb.Api()
-    # Anonymous access — works when projects are set to Public on wandb.ai
-    os.environ.setdefault("WANDB_ANONYMOUS", "allow")
-    return wandb.Api(api_key=None)
+    Return a W&B API client, or None if no credentials are available.
+
+    Args:
+        require_auth: If True, raises error when no credentials found (for uploads).
+                      If False, returns None when no credentials found (for downloads).
+
+    For uploads, set WANDB_API_KEY environment variable.
+    For downloads, credentials are optional but required to access W&B artifacts.
+    """
+    if not _has_wandb_credentials():
+        if require_auth:
+            raise ValueError(
+                "W&B authentication required for this operation. "
+                "Set WANDB_API_KEY or ATTACKBENCH_WANDB_KEY environment variable, "
+                "or run 'wandb login' to authenticate."
+            )
+        return None
+    
+    # Credentials available, create API client
+    api_key = os.environ.get("WANDB_API_KEY") or os.environ.get("ATTACKBENCH_WANDB_KEY")
+    if api_key:
+        return wandb.Api(api_key=api_key)
+    return wandb.Api()
+
+
+def _make_artifact_name(*parts) -> str:
+    """Build a W&B artifact name from parts, normalised to lowercase."""
+    return "-".join(str(p).lower() for p in parts)
 
 def get_precompiled_distances(dataset, threat_model, model_name, attack_name, attack_lib, n_samples, cache_dir="./data/cache"):
     """
@@ -38,8 +74,8 @@ def get_precompiled_distances(dataset, threat_model, model_name, attack_name, at
     Returns:
         Dictionary with precompiled distances, or None if not found
     """
-    # Artifact naming convention: dataset-threat_model-model-attack-lib-n_samples
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
+    # Artifact naming convention: dataset-threat_model-model-attack-lib-n_samples (all lowercase)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name, attack_name, attack_lib, n_samples)
     file_name = f"{artifact_name}.json"
     
     cache_path = Path(cache_dir) / dataset
@@ -57,8 +93,11 @@ def get_precompiled_distances(dataset, threat_model, model_name, attack_name, at
     # 2. Download from W&B
     print(f"[AttackBench] Downloading artifact from W&B: {artifact_name}...")
     
-    # Initialize API – uses embedded read-only key if user has no credentials
+    # Get API client (returns None if no credentials available)
     api = _get_wandb_api()
+    if api is None:
+        print(f"[AttackBench] W&B credentials not found. Skipping cache lookup.")
+        return None
 
     try:
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
@@ -97,8 +136,8 @@ def get_optimal_distances(dataset, threat_model, model_name, n_samples, cache_di
     Returns:
         Dictionary with optimal distances, or None if not found
     """
-    # Artifact naming convention: dataset-threat_model-model-n_samples (NO attack_name)
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+    # Artifact naming convention: dataset-threat_model-model-n_samples (all lowercase)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
     file_name = f"{artifact_name}.json"
     
     # Use separate cache folder for optimal distances
@@ -119,6 +158,10 @@ def get_optimal_distances(dataset, threat_model, model_name, n_samples, cache_di
     print(f"[AttackBench] Downloading optimal distances from W&B: {artifact_name}...")
     
     api = _get_wandb_api()
+    if api is None:
+        print(f"[AttackBench] W&B credentials not found. Cannot download optimal distances.")
+        print(f"[AttackBench] Run 'wandb login' or set WANDB_API_KEY to enable W&B access.")
+        return None
 
     try:
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")

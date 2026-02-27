@@ -14,19 +14,54 @@ WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
 
-def _get_wandb_api() -> wandb.Api:
-    """
-    Return a W&B API client.
 
-    Uses the caller's existing credentials (WANDB_API_KEY env var or ~/.netrc)
-    when available. Falls back to anonymous access for public projects, so users
-    on Colab or fresh environments are never prompted for a login.
+def _has_wandb_credentials() -> bool:
+    """Check if W&B credentials are available (without prompting)."""
+    # Check environment variables
+    if os.environ.get("WANDB_API_KEY") or os.environ.get("ATTACKBENCH_WANDB_KEY"):
+        return True
+    # Check netrc file (where wandb login stores credentials)
+    netrc_path = Path.home() / ".netrc"
+    if netrc_path.exists():
+        try:
+            content = netrc_path.read_text()
+            if "api.wandb.ai" in content:
+                return True
+        except:
+            pass
+    return False
+
+
+def _get_wandb_api(require_auth: bool = False) -> Optional[wandb.Api]:
     """
-    if os.environ.get("WANDB_API_KEY"):
-        return wandb.Api()
-    # Anonymous access — works when projects are set to Public on wandb.ai
-    os.environ.setdefault("WANDB_ANONYMOUS", "allow")
-    return wandb.Api(api_key=None)
+    Return a W&B API client, or None if no credentials are available.
+
+    Args:
+        require_auth: If True, raises error when no credentials found (for uploads).
+                      If False, returns None when no credentials found (for downloads).
+
+    For uploads, set WANDB_API_KEY environment variable.
+    For downloads, credentials are optional but required to access W&B artifacts.
+    """
+    if not _has_wandb_credentials():
+        if require_auth:
+            raise ValueError(
+                "W&B authentication required for this operation. "
+                "Set WANDB_API_KEY or ATTACKBENCH_WANDB_KEY environment variable, "
+                "or run 'wandb login' to authenticate."
+            )
+        return None
+    
+    # Credentials available, create API client
+    api_key = os.environ.get("WANDB_API_KEY") or os.environ.get("ATTACKBENCH_WANDB_KEY")
+    if api_key:
+        return wandb.Api(api_key=api_key)
+    return wandb.Api()
+
+
+def _make_artifact_name(*parts) -> str:
+    """Build a W&B artifact name from parts, normalised to lowercase."""
+    return "-".join(str(p).lower() for p in parts)
 
 def upload_precompiled_distances(
     file_path: Union[str, Path] = None,
@@ -100,8 +135,11 @@ def upload_precompiled_distances(
         print("Error: Missing required metadata (dataset, threat_model, model_name, attack_name, attack_lib)")
         return False
     
-    # Create artifact name following convention
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
+    # Verify authentication before attempting upload
+    _get_wandb_api(require_auth=True)
+    
+    # Create artifact name following convention (all lowercase)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name, attack_name, attack_lib, n_samples)
     
     print(f"Uploading to W&B: {artifact_name}")
     print(f"   File: {file_path}")
@@ -110,7 +148,7 @@ def upload_precompiled_distances(
     try:
         # Check if artifact already exists
         if not overwrite:
-            api = _get_wandb_api()
+            api = _get_wandb_api(require_auth=True)
             try:
                 existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
                 print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
@@ -173,11 +211,11 @@ def download_precompiled_distances(
     
     # Try to find artifact
     if n_samples:
-        artifact_name = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}"
+        artifact_name = _make_artifact_name(dataset, threat_model, model_name, attack_name, attack_lib, n_samples)
         return _download_artifact(artifact_name, dataset, cache_dir, force_download)
     else:
         # Search for any matching artifact (will get latest)
-        prefix = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-"
+        prefix = _make_artifact_name(dataset, threat_model, model_name, attack_name, attack_lib) + "-"
         return _search_and_download(prefix, dataset, cache_dir, force_download)
 
 
@@ -206,8 +244,13 @@ def _download_artifact(
     # 2. Download from W&B
     print(f"Downloading from W&B: {artifact_name}")
     
+    api = _get_wandb_api()
+    if api is None:
+        print(f"W&B credentials not found. Skipping download.")
+        print(f"Run 'wandb login' or set WANDB_API_KEY to enable W&B access.")
+        return None
+    
     try:
-        api = _get_wandb_api()
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
         
         print(f"   Found artifact: {artifact.name} (v{artifact.version})")
@@ -250,8 +293,12 @@ def _search_and_download(
     force_download: bool
 ) -> Optional[Dict[str, Any]]:
     """Helper to search and download matching artifacts."""
+    api = _get_wandb_api()
+    if api is None:
+        print(f"W&B credentials not found. Skipping search.")
+        return None
+    
     try:
-        api = _get_wandb_api()
         artifact_type = api.artifact_type("precompiled_distances", f"{WANDB_ENTITY}/{WANDB_PROJECT}")
         artifacts = artifact_type.artifacts(per_page=50)
         
@@ -335,7 +382,7 @@ def upload_optimal_distances(
         output_dir = Path('./temp_upload/optimal')
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+        artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
         file_path = output_dir / f"{artifact_name}.json"
         
         # Add metadata to data
@@ -390,8 +437,11 @@ def upload_optimal_distances(
         print("Error: Missing required metadata (dataset, threat_model, model_name, n_samples)")
         return False
     
-    # Create artifact name
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+    # Verify authentication before attempting upload
+    _get_wandb_api(require_auth=True)
+    
+    # Create artifact name (all lowercase)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
     
     print(f"Uploading optimal distances to W&B: {artifact_name}")
     print(f"   File: {file_path}")
@@ -400,7 +450,7 @@ def upload_optimal_distances(
     try:
         # Check if artifact already exists
         if not overwrite:
-            api = _get_wandb_api()
+            api = _get_wandb_api(require_auth=True)
             try:
                 existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
                 print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
@@ -460,7 +510,7 @@ def download_optimal_distances(
         >>> optimal = download_optimal_distances('cifar10', 'linf', 'Standard', 1000)
         >>> distances = optimal['distances']['linf']
     """
-    artifact_name = f"{dataset}-{threat_model}-{model_name}-{n_samples}"
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
     file_name = f"{artifact_name}.json"
     
     # Use separate cache folder for optimal distances
@@ -480,8 +530,13 @@ def download_optimal_distances(
     # 2. Download from W&B
     print(f"Downloading optimal distances from W&B: {artifact_name}")
     
+    api = _get_wandb_api()
+    if api is None:
+        print(f"W&B credentials not found. Cannot download optimal distances.")
+        print(f"Run 'wandb login' or set WANDB_API_KEY to enable W&B access.")
+        return None
+    
     try:
-        api = _get_wandb_api()
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
         
         print(f"   Found artifact: {artifact.name} (v{artifact.version})")
