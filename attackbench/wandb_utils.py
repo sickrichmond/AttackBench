@@ -1,3 +1,4 @@
+import os
 import wandb
 import json
 from pathlib import Path
@@ -6,6 +7,20 @@ from pathlib import Path
 WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
+
+def _get_wandb_api() -> wandb.Api:
+    """
+    Return a W&B API client.
+
+    Uses the caller's existing credentials (WANDB_API_KEY env var or ~/.netrc)
+    when available. Falls back to anonymous access for public projects, so users
+    on Colab or fresh environments are never prompted for a login.
+    """
+    if os.environ.get("WANDB_API_KEY"):
+        return wandb.Api()
+    # Anonymous access — works when projects are set to Public on wandb.ai
+    os.environ.setdefault("WANDB_ANONYMOUS", "allow")
+    return wandb.Api(api_key=None)
 
 def get_precompiled_distances(dataset, threat_model, model_name, attack_name, attack_lib, n_samples, cache_dir="./data/cache"):
     """
@@ -42,9 +57,9 @@ def get_precompiled_distances(dataset, threat_model, model_name, attack_name, at
     # 2. Download from W&B
     print(f"[AttackBench] Downloading artifact from W&B: {artifact_name}...")
     
-    # Initialize API (anonymous mode supported if project is public)
-    api = wandb.Api()
-    
+    # Initialize API – uses embedded read-only key if user has no credentials
+    api = _get_wandb_api()
+
     try:
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
         download_path = artifact.download(root=str(cache_path))
@@ -103,8 +118,8 @@ def get_optimal_distances(dataset, threat_model, model_name, n_samples, cache_di
     # 2. Download from W&B
     print(f"[AttackBench] Downloading optimal distances from W&B: {artifact_name}...")
     
-    api = wandb.Api()
-    
+    api = _get_wandb_api()
+
     try:
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
         download_path = artifact.download(root=str(cache_path))

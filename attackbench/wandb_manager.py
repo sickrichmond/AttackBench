@@ -4,6 +4,7 @@ AttackBench W&B Manager - User-friendly API for precompiled distances.
 Provides simple upload/download functions for managing precompiled attack distances.
 """
 import json
+import os
 import wandb
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
@@ -12,6 +13,20 @@ from typing import Dict, Any, Optional, List, Union
 WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
+
+def _get_wandb_api() -> wandb.Api:
+    """
+    Return a W&B API client.
+
+    Uses the caller's existing credentials (WANDB_API_KEY env var or ~/.netrc)
+    when available. Falls back to anonymous access for public projects, so users
+    on Colab or fresh environments are never prompted for a login.
+    """
+    if os.environ.get("WANDB_API_KEY"):
+        return wandb.Api()
+    # Anonymous access — works when projects are set to Public on wandb.ai
+    os.environ.setdefault("WANDB_ANONYMOUS", "allow")
+    return wandb.Api(api_key=None)
 
 def upload_precompiled_distances(
     file_path: Union[str, Path] = None,
@@ -95,7 +110,7 @@ def upload_precompiled_distances(
     try:
         # Check if artifact already exists
         if not overwrite:
-            api = wandb.Api()
+            api = _get_wandb_api()
             try:
                 existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
                 print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
@@ -192,7 +207,7 @@ def _download_artifact(
     print(f"Downloading from W&B: {artifact_name}")
     
     try:
-        api = wandb.Api()
+        api = _get_wandb_api()
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{artifact_name}:latest")
         
         print(f"   Found artifact: {artifact.name} (v{artifact.version})")
@@ -236,7 +251,7 @@ def _search_and_download(
 ) -> Optional[Dict[str, Any]]:
     """Helper to search and download matching artifacts."""
     try:
-        api = wandb.Api()
+        api = _get_wandb_api()
         artifact_type = api.artifact_type("precompiled_distances", f"{WANDB_ENTITY}/{WANDB_PROJECT}")
         artifacts = artifact_type.artifacts(per_page=50)
         
@@ -385,7 +400,7 @@ def upload_optimal_distances(
     try:
         # Check if artifact already exists
         if not overwrite:
-            api = wandb.Api()
+            api = _get_wandb_api()
             try:
                 existing = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
                 print(f"Warning: Artifact already exists. Use overwrite=True to replace it.")
@@ -466,7 +481,7 @@ def download_optimal_distances(
     print(f"Downloading optimal distances from W&B: {artifact_name}")
     
     try:
-        api = wandb.Api()
+        api = _get_wandb_api()
         artifact = api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT_OPTIMAL}/{artifact_name}:latest")
         
         print(f"   Found artifact: {artifact.name} (v{artifact.version})")
