@@ -32,14 +32,8 @@ def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
     model._attackbench_dataset = dataset
     return model
 
-# EXPORT EXISTING ANALYSIS FUNCTIONS
-try:
-    from analysis.utils import eval_optimality, ensemble_gain, ensemble_distances
-    from analysis.plot_distances import plot_robust_accuracy_curve
-    from analysis.compile_jsons import load_precompiled_distances, compare_attacks
-    analysis_available = True
-except ImportError:
-    analysis_available = False
+# Analysis functions — exposed as clean API from attack_evaluation.metrics
+from attack_evaluation.metrics import eval_optimality, ensemble_gain, ensemble_distances
 
 # W&B integration for precompiled distances
 from .wandb_manager import (
@@ -82,34 +76,39 @@ from .wandb_utils import get_precompiled_distances, get_optimal_distances
 
 __all__ = [
     'run_attack',
-    'get_stats',  # NUOVO
-    
+    'get_stats',
+
     # Helpers to load objects
     'load_model',
     'get_model',
-    'get_loader', 
-    'get_attack',  # SEMPLIFICATO
-    
+    'get_loader',
+    'get_attack',
+
     # Custom components
     'create_custom_attack',
-    
+
     # BoMN composite attack
     'bomn_attack',
-    
+
+    # Analysis functions (from attack_evaluation.metrics)
+    'eval_optimality',
+    'ensemble_gain',
+    'ensemble_distances',
+
     # Stage 3: Optimality (API-level)
     'compute_local_optimality',
     'compare_attacks_optimality',
-    
+
     # Stage 4-5: Global Optimality & Ranking (API-level)
     'compute_global_optimality',
     'create_attack_leaderboard',
     'compare_attacks_global',
     'format_leaderboard',
-    
+
     # W&B functions
     'upload_precompiled_distances',
     'download_precompiled_distances',
-    'upload_directory', 
+    'upload_directory',
     'list_available_distances',
     'get_precompiled_distances',
     # Optimal distances (lower envelope)
@@ -117,13 +116,3 @@ __all__ = [
     'download_optimal_distances',
     'get_optimal_distances',
 ]
-
-if analysis_available:
-    __all__.extend([
-        'eval_optimality',
-        'ensemble_gain', 
-        'ensemble_distances',
-        'plot_robust_accuracy_curve',
-        'load_precompiled_distances',
-        'compare_attacks'
-    ])

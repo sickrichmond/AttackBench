@@ -1,40 +1,58 @@
-import argparse
-import json
-import logging
-from collections import OrderedDict
+import hashlib
+import inspect
+import random
+import traceback
+import warnings
+from collections import OrderedDict, defaultdict
 from pathlib import Path
-from pprint import pprint
+import json
+from typing import Dict, Any, Optional, Callable, Union
 
-import torch
-from typing import Union, Dict, Any, Optional, Callable, List
-from torch.utils.data import DataLoader
-from torch import nn
 import numpy as np
+import torch
+import torch.nn as nn
+from torch import Tensor
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from .adv_lib_sub import l0_distances, l1_distances, l2_distances, linf_distances
-
-# Import RobustBench components
-from robustbench import load_model as rb_load_model
-from robustbench.loaders import make_custom_dataset
-
-from .attacks.ingredient import get_attack
-from .datasets.ingredient import get_loader
-from .models.ingredient import get_model
-from .utils import run_attack as _run_attack_impl, set_seed
-
-# Import get_stats from metrics package (no duplication!)
+# Import get_stats from metrics package
 from .metrics.analysis import get_stats
 
 # W&B integration for cached distances
 from attackbench.wandb_utils import get_precompiled_distances
 
-# Supported metrics
-METRICS = OrderedDict([
-    ('linf', linf_distances),
-    ('l0', l0_distances),
-    ('l1', l1_distances),
-    ('l2', l2_distances),
-])
+
+def _set_seed(seed: int = None) -> None:
+    """Set random seed for reproducibility."""
+    if seed is None:
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def _call_attack(attack, model, inputs, labels, targeted, targets, **kwargs):
+    """
+    Call the attack function, filtering kwargs to match its signature.
+    """
+    sig = inspect.signature(attack)
+
+    attack_params = {
+        'model': model,
+        'inputs': inputs,
+        'labels': labels,
+    }
+
+    if 'targeted' in sig.parameters:
+        attack_params['targeted'] = targeted
+    if 'targets' in sig.parameters:
+        attack_params['targets'] = targets
+
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            attack_params[key] = value
+
+    return attack(**attack_params)
 
 
 def _extract_metadata(model, dataset, attack):
@@ -185,38 +203,38 @@ def run_attack(
     # Setup device
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+
     # Set seed
-    set_seed(seed)
-    
+    _set_seed(seed)
+
     # Wrap model if necessary
     if not hasattr(model, 'start_tracking'):
         from .models.benchmodel_wrapper import BenchModel
         model = BenchModel(model)
-    
+
     model.to(device)
-    
+
     # Add norm to kwargs for custom attacks
     kwargs['norm'] = threat_model
-    
+
     if len(dataset) == 0:
         raise ValueError("Dataset is empty - no inputs to attack")
-    
+
     # Auto-extract metadata from objects if not provided
     auto_dataset, auto_model, auto_attack, auto_lib = _extract_metadata(model, dataset, attack)
     dataset_name = dataset_name or auto_dataset
     model_name = model_name or auto_model
     attack_name = attack_name or auto_attack
     attack_lib = attack_lib or auto_lib
-    
+
     # Calculate n_samples from dataset for W&B lookup
     n_samples = sum(len(batch[0]) for batch in dataset)
-    
+
     # Check for cached precompiled distances on W&B
     if use_cached and all([dataset_name, model_name, attack_name, attack_lib]):
         key = f"{dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}".lower()
         print(f"[AttackBench] Checking W&B for cached distances: {key}")
-        
+
         cached_data = get_precompiled_distances(
             dataset=dataset_name,
             threat_model=threat_model,
@@ -226,11 +244,9 @@ def run_attack(
             n_samples=n_samples,
             cache_dir=cache_dir
         )
-        
+
         if cached_data is not None:
             print(f"[AttackBench] Found cached distances! Skipping attack execution.")
-            
-            # Return cached data with metadata
             return {
                 'distances': cached_data.get('distances', {}),
                 'best_optim_distances': cached_data.get('best_optim_distances', {}),
@@ -243,36 +259,106 @@ def run_attack(
                     'attack_lib': attack_lib,
                     'threat_model': threat_model,
                     'n_samples': n_samples,
-                    'source': 'wandb_cache'  # Indicate this came from cache
+                    'source': 'wandb_cache'
                 }
             }
         else:
             print(f"[AttackBench] No cached distances found. Running attack...")
-    
-    # Run attack - SOLO dati grezzi
-    raw_data = _run_attack_impl(
-        model=model,
-        loader=dataset,
-        attack=attack,
-        metrics=METRICS,  # Solo calcolo distanze base
-        threat_model=threat_model,
-        return_adv=save_adversarial,
-        debug=debug,
-        **kwargs
-    )
-    
-    # Return ONLY essential raw data - all statistics computed by metrics package
-    n_samples = len(raw_data['adv_success'])
+
+    # ── Execute attack (batch loop) ──────────────────────────────────────
+    from .adv_lib_sub import _default_metrics
+    metrics = _default_metrics
+
+    targeted = False
+    loader_length = len(dataset)
+
+    accuracies, ori_success, adv_success = [], [], []
+    hashes_list, box_failures, batch_failures = [], [], []
+    predictions, adv_predictions = [], []
+    forwards, backwards, times = [], [], []
+    distances, best_optim_distances = defaultdict(list), defaultdict(list)
+
+    if save_adversarial:
+        all_inputs, all_adv_inputs = [], []
+
+    for inputs, labels in tqdm(dataset, ncols=80, total=loader_length):
+        if save_adversarial:
+            all_inputs.append(inputs.clone())
+
+        # Compute hashes to ensure input samples are identical
+        for inp in inputs:
+            input_hash = hashlib.sha512(np.ascontiguousarray(inp.numpy())).hexdigest()
+            hashes_list.append(input_hash)
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        attack_inputs, attack_labels = inputs.clone(), labels.clone()
+
+        # Start tracking of the batch
+        model.start_tracking(
+            inputs=inputs, labels=labels, targeted=targeted, targets=None,
+            tracking_metric=metrics[threat_model], tracking_threat_model=threat_model
+        )
+
+        if debug:
+            adv_inputs = _call_attack(
+                attack, model, attack_inputs, attack_labels, targeted, None, **kwargs
+            )
+        else:
+            try:
+                adv_inputs = _call_attack(
+                    attack, model, attack_inputs, attack_labels, targeted, None, **kwargs
+                )
+                batch_failures.append(False)
+            except Exception:
+                warnings.warn(f'Error running batch for {attack}')
+                traceback.print_exc()
+                batch_failures.append(True)
+                adv_inputs = inputs
+
+        model.end_tracking()
+        adv_inputs.detach_()
+        times.append(model.elapsed_time)
+        forwards.extend(model.num_forwards.cpu().tolist())
+        backwards.extend(model.num_backwards.cpu().tolist())
+
+        # Original inputs
+        accuracies.extend(model.correct.cpu().tolist())
+        ori_success.extend(model.ori_success.cpu().tolist())
+
+        # Checking box constraint
+        batch_box_failures = ((adv_inputs < 0) | (adv_inputs > 1)).flatten(1).any(1)
+        box_failures.extend(batch_box_failures.cpu().tolist())
+
+        if batch_box_failures.any():
+            warnings.warn('Values of produced adversarials are not in the [0, 1] range -> Clipping to [0, 1].')
+            adv_inputs.clamp_(min=0, max=1)
+
+        if save_adversarial:
+            all_adv_inputs.append(adv_inputs.cpu().clone())
+
+        adv_logits = model(adv_inputs)
+        adv_pred = adv_logits.argmax(dim=1)
+
+        ori_logits = model(inputs)
+        ori_pred = ori_logits.argmax(dim=1)
+        predictions.extend(ori_pred.cpu().tolist())
+        adv_predictions.extend(adv_pred.cpu().tolist())
+
+        success = (adv_pred != labels)
+        adv_success.extend(success.cpu().tolist())
+
+        for metric_name, metric_func in metrics.items():
+            distances[metric_name].extend(metric_func(adv_inputs, inputs).cpu().tolist())
+            best_optim_distances[metric_name].extend(model.min_dist[metric_name].cpu().tolist())
+
+    # ── Package results ──────────────────────────────────────────────────
+    n_samples = len(adv_success)
     
     clean_data = {
-        # ALWAYS: Core attack data (needed by get_stats)
-        'distances': raw_data['distances'],
-        'best_optim_distances': raw_data['best_optim_distances'], 
-        'adv_success': raw_data['adv_success'],
-        'ori_success': raw_data['ori_success'],
-        # NOTE: ASR and accuracy computed by get_stats() from success flags above
-        
-        # ALWAYS: Metadata for W&B integration and optimality computation
+        'distances': dict(distances),
+        'best_optim_distances': dict(best_optim_distances),
+        'adv_success': adv_success,
+        'ori_success': ori_success,
         'metadata': {
             'dataset': dataset_name,
             'model_name': model_name,
@@ -280,28 +366,31 @@ def run_attack(
             'attack_lib': attack_lib,
             'threat_model': threat_model,
             'n_samples': n_samples,
-            'source': 'executed'  # Indicate this was freshly computed
+            'source': 'executed'
         }
     }
-    
+
     # OPTIONAL: Extra metadata (only if requested)
     if include_metadata:
         clean_data.update({
-            'original_predictions': raw_data.get('original_predictions', []),
-            'adversarial_predictions': raw_data.get('adversarial_predictions', []),
-            'num_forwards': raw_data['num_forwards'],
-            'num_backwards': raw_data['num_backwards'],
-            'times': raw_data['times'],
-            'hashes': raw_data['hashes'],
-            'box_failures': raw_data['box_failures'],
-            'batch_failures': raw_data['batch_failures'],
-            'targeted': raw_data['targeted'],
+            'original_predictions': predictions,
+            'adversarial_predictions': adv_predictions,
+            'num_forwards': forwards,
+            'num_backwards': backwards,
+            'times': times,
+            'hashes': hashes_list,
+            'box_failures': box_failures,
+            'batch_failures': batch_failures,
+            'targeted': targeted,
         })
     
     # Add adversarial inputs if requested
-    if save_adversarial and 'adv_inputs' in raw_data:
-        clean_data['adv_inputs'] = raw_data['adv_inputs']
-        clean_data['inputs'] = raw_data['inputs']
+    if save_adversarial:
+        if len(all_inputs) > 1:
+            all_inputs = torch.cat(all_inputs, dim=0)
+            all_adv_inputs = torch.cat(all_adv_inputs, dim=0)
+        clean_data['adv_inputs'] = all_adv_inputs
+        clean_data['inputs'] = all_inputs
     
     # Save raw results if requested
     if save_results or save_adversarial:
@@ -324,49 +413,5 @@ def run_attack(
             with open(save_dir / 'results.json', 'w') as f:
                 json.dump(results_to_save, f, indent=2, default=str)
     
-    return clean_data  # SOLO DATI GREZZI - zero statistiche
-
-
-# NOTE: get_stats() is now imported from metrics.analysis - no duplication!
-# All analysis functions (curves, optimality, efficiency) are in the metrics package.
-
-
-# Maintain CLI compatibility (OPTIONAL - can be removed)
-def parse_arguments():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Attack Evaluation Script')
-    
-    parser.add_argument('--model', type=str, required=True)
-    parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--attack', type=str, required=True)
-    parser.add_argument('--threat_model', type=str, required=True)
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--output_dir', type=str, default='./results')
-    parser.add_argument('--save_adv', action='store_true')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--debug', action='store_true')
-    
-    return parser.parse_args()
-
-def main():
-    """CLI entry point (OPTIONAL)"""
-    args = parse_arguments()
-    
-    results = run_attack(
-        model=args.model,
-        dataset=args.dataset,
-        attack=args.attack,
-        threat_model=args.threat_model,
-        batch_size=args.batch_size,
-        save_results=True,
-        save_adversarial=args.save_adv,
-        output_dir=args.output_dir,
-        seed=args.seed,
-        debug=args.debug
-    )
-    
-    print(f"Attack completed! ASR: {results.get('ASR', 'N/A'):.2%}")
-
-if __name__ == '__main__':
-    main()
+    return clean_data
 
