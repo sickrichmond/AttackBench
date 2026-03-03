@@ -10,9 +10,6 @@ __pycache__/
 # Model Zoo
 *.pth
 
-# project
-figs/
-
 # C extensions
 *.so
 *.pdf
@@ -143,7 +140,6 @@ dmypy.json
 .pyre/
 
 # resources folders
-/results/
 /data/
 /models/
 
@@ -152,12 +148,9 @@ dmypy.json
 
 # DB stuff
 /wandb/
-/temp_real_upload/
-/temp_upload/
 
-#precompiled distancies and cache
+#precompiled distances and cache
 /cache/
-/results_dir/
 
 #experiments and test results
 /bomn_results/
