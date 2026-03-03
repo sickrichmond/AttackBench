@@ -163,3 +163,7 @@ dmypy.json
 /bomn_results/
 /results_envelope/
 /scripts/private_scripts/
+
+# local configuration
+/compiled/
+/exp_configs/
