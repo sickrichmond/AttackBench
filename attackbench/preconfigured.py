@@ -33,6 +33,8 @@ pgd = get_original_apgd(
     rho=0.75, 
     use_largereps=False
 )
+pgd._attackbench_name = 'pgd'
+pgd._attackbench_lib = 'original'
 
 fgsm = get_original_apgd(  # APGD con 1 step = FGSM-like
     threat_model='linf', 
@@ -43,6 +45,8 @@ fgsm = get_original_apgd(  # APGD con 1 step = FGSM-like
     rho=0.75, 
     use_largereps=False
 )
+fgsm._attackbench_name = 'fgsm'
+fgsm._attackbench_lib = 'original'
 
 apgd = get_original_apgd(
     threat_model='linf', 
@@ -53,6 +57,8 @@ apgd = get_original_apgd(
     rho=0.75, 
     use_largereps=False
 )
+apgd._attackbench_name = 'apgd'
+apgd._attackbench_lib = 'original'
 
 fab = get_original_fab(
     threat_model='linf', 
@@ -65,6 +71,8 @@ fab = get_original_fab(
     targeted_variant=False, 
     n_target_classes=9
 )
+fab._attackbench_name = 'fab'
+fab._attackbench_lib = 'original'
 
 fmn = get_original_fmn(
     threat_model='linf', 
@@ -72,12 +80,16 @@ fmn = get_original_fmn(
     max_step_size=10, 
     gamma=0.05
 )
+fmn._attackbench_name = 'fmn'
+fmn._attackbench_lib = 'original'
 
 deepfool = get_original_deepfool(
     num_classes=10, 
     overshoot=0.02, 
     num_steps=50
 )
+deepfool._attackbench_name = 'deepfool'
+deepfool._attackbench_lib = 'original'
 
 superdeepfool = get_original_superdeepfool(
     num_classes=10,
@@ -86,6 +98,8 @@ superdeepfool = get_original_superdeepfool(
     alpha=1.5,
     adaptive_overshoot=True
 )
+superdeepfool._attackbench_name = 'superdeepfool'
+superdeepfool._attackbench_lib = 'original'
 
 trust_region = get_original_tr(
     threat_model='linf', 
@@ -94,5 +108,7 @@ trust_region = get_original_tr(
     c=9, 
     num_steps=100
 )
+trust_region._attackbench_name = 'trust_region'
+trust_region._attackbench_lib = 'original'
 
 __all__ = ['pgd', 'fgsm', 'apgd', 'fab', 'fmn', 'deepfool', 'superdeepfool', 'trust_region']

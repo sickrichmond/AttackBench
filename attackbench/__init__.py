@@ -65,7 +65,6 @@ def format_leaderboard(*args, **kwargs):
 from .wandb import (
     upload_precompiled_distances,
     download_precompiled_distances,
-    upload_directory,
     list_available_distances,
     upload_optimal_distances,
     download_optimal_distances,
@@ -107,7 +106,6 @@ __all__ = [
     # W&B functions
     'upload_precompiled_distances',
     'download_precompiled_distances',
-    'upload_directory',
     'list_available_distances',
     'get_precompiled_distances',
     'upload_optimal_distances',

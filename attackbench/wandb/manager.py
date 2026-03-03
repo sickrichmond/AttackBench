@@ -757,7 +757,8 @@ def list_available_distances(dataset: str = None) -> List[Dict[str, Any]]:
 get_precompiled_distances = download_precompiled_distances
 
 # CLI se eseguito direttamente
-if __name__ == "__main__":
+def main():
+    """CLI entry point for AttackBench W&B Manager."""
     import argparse
     
     parser = argparse.ArgumentParser(description="AttackBench W&B Manager")
@@ -810,3 +811,7 @@ if __name__ == "__main__":
         artifacts = list_available_distances(args.dataset)
         for art in artifacts:
             print(f"{art['dataset']}-{art['threat_model']}-{art['model']}-{art['batch_size']} (v{art['version']})")
+
+
+if __name__ == "__main__":
+    main()
