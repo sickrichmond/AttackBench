@@ -10,7 +10,7 @@ import sys
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from attackbench.wandb_manager import upload_directory
+from attackbench.wandb.manager import upload_directory
 
 def upload_all_compiled(results_dir):
     """

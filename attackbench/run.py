@@ -19,7 +19,7 @@ from tqdm import tqdm
 from .metrics.analysis import get_stats
 
 # W&B integration for cached distances
-from attackbench.wandb_utils import get_precompiled_distances
+from .wandb.utils import get_precompiled_distances
 
 
 def _set_seed(seed: int = None) -> None:

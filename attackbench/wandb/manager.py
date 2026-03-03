@@ -100,7 +100,7 @@ def upload_precompiled_distances(
             print("Error: Must provide dataset, threat_model, model_name, attack_name, attack_lib with attack_data")
             return False
         
-        from attack_evaluation.metrics.storage import save_precompiled_distances
+        from ..metrics.storage import save_precompiled_distances
         file_path, metadata = save_precompiled_distances(
             attack_data, dataset, threat_model, model_name, attack_name, attack_lib
         )

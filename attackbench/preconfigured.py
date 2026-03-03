@@ -14,7 +14,7 @@ Usage:
 """
 
 # Import dalla tua implementazione original
-from attack_evaluation.attacks.original.configs import (
+from .attacks.original.configs import (
     get_original_apgd,
     get_original_fab,
     get_original_fmn,

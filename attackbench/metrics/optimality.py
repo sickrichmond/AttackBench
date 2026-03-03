@@ -125,7 +125,7 @@ def compute_local_optimality(
             )
         
         # Lazy import to avoid circular dependency
-        from attackbench.wandb_manager import download_optimal_distances
+        from ..wandb.manager import download_optimal_distances
         
         # Download optimal distances artifact
         best_data = download_optimal_distances(

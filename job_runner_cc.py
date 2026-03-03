@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from attack_evaluation.run import ex
+from attackbench.run import ex
 
 dataset_lengths = {
     'mnist': 10000,

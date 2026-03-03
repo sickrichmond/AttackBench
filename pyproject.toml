@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attackbench"
-version = "1.0.0a5"
+version = "1.0.0a6"
 description = "A Python package for benchmarking adversarial attacks and defenses."
 authors = [
     { name = "Antonio Cinà", email="antonio.cina@unige.it"},
@@ -114,7 +114,7 @@ docs = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["attackbench*", "attack_evaluation*", "analysis*"]
+include = ["attackbench*"]
 
 [project.scripts]
-run_attack = "attack_evaluation.run:main"
+run_attack = "attackbench.run:main"

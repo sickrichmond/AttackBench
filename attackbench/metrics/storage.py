@@ -116,7 +116,7 @@ def load_best_distances_with_wandb(dataset: str, threat_model: str, model_name: 
     """
     try:
         # Use the new modular function
-        from attackbench.wandb_manager import download_precompiled_distances
+        from ..wandb.manager import download_precompiled_distances
         
         data = download_precompiled_distances(
             dataset=dataset,
@@ -132,7 +132,7 @@ def load_best_distances_with_wandb(dataset: str, threat_model: str, model_name: 
         print("W&B manager not available, trying legacy fallback")
         # Fallback al vecchio sistema se necessario
         try:
-            from attackbench.wandb_utils import get_precompiled_distances
+            from ..wandb.utils import get_precompiled_distances
             return get_precompiled_distances(dataset, threat_model, model_name, batch_size, cache_dir) or {}
         except ImportError:
             print("No W&B integration available")
