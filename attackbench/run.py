@@ -15,9 +15,6 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-# Import get_stats from metrics package
-from .metrics.analysis import get_stats
-
 # W&B integration for cached distances
 from .wandb.utils import get_precompiled_distances
 

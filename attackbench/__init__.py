@@ -6,22 +6,25 @@ Usage:
 
     results = attackbench.run_attack(model, dataset, attack, 'linf', device)
     stats = attackbench.get_stats(results, 'linf')
+
+Optional subpackages:
+    - attacks: pip install attackbench[attacks]  (adversarial attack libraries)
+    - metrics: pip install attackbench[metrics]  (analysis & evaluation tools)
+    Both are optional and independent of each other.
 """
+
+import importlib
 
 # Version info
 __version__ = "1.0.0"
 
-# ── Core API ─────────────────────────────────────────────────────────────
-from .run import run_attack, get_stats
+# ── Core API (always available) ──────────────────────────────────────────
+from .run import run_attack
 from .custom_components import create_custom_attack
 
-# ── Helpers to load objects ──────────────────────────────────────────────
-from .attacks.ingredient import get_attack
+# ── Helpers to load objects (always available) ───────────────────────────
 from .datasets.ingredient import get_loader
 from .models.ingredient import get_model
-
-# ── BoMN (Best-of-MinNorm) composite attack ─────────────────────────────
-from .attacks.bomn import bomn_attack
 
 # ── RobustBench integration ─────────────────────────────────────────────
 def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
@@ -31,35 +34,6 @@ def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
     model._attackbench_model = model_name
     model._attackbench_dataset = dataset
     return model
-
-# ── Analysis functions (from metrics) ────────────────────────────────────
-from .metrics import eval_optimality, ensemble_gain, ensemble_distances
-
-# ── Stage 3: Local Optimality ────────────────────────────────────────────
-def compute_local_optimality(*args, **kwargs):
-    from .metrics import compute_local_optimality as _compute_local_optimality
-    return _compute_local_optimality(*args, **kwargs)
-
-def compare_attacks_optimality(*args, **kwargs):
-    from .metrics import compare_attacks_optimality as _compare_attacks_optimality
-    return _compare_attacks_optimality(*args, **kwargs)
-
-# ── Stage 4-5: Global Optimality & Ranking ───────────────────────────────
-def compute_global_optimality(*args, **kwargs):
-    from .metrics import compute_global_optimality as _compute_global_optimality
-    return _compute_global_optimality(*args, **kwargs)
-
-def create_attack_leaderboard(*args, **kwargs):
-    from .metrics import create_attack_leaderboard as _create_attack_leaderboard
-    return _create_attack_leaderboard(*args, **kwargs)
-
-def compare_attacks_global(*args, **kwargs):
-    from .metrics import compare_attacks_global as _compare_attacks_global
-    return _compare_attacks_global(*args, **kwargs)
-
-def format_leaderboard(*args, **kwargs):
-    from .metrics import format_leaderboard as _format_leaderboard
-    return _format_leaderboard(*args, **kwargs)
 
 # ── W&B integration ─────────────────────────────────────────────────────
 from .wandb import (
@@ -72,6 +46,74 @@ from .wandb import (
     get_optimal_distances,
 )
 
+# ── Lazy imports for optional subpackages (attacks/ and metrics/) ────────
+# These symbols are resolved on first access via __getattr__ (PEP 562).
+# If the subpackage is not installed, a clear ImportError is raised.
+
+_LAZY_ATTACKS = {
+    'get_attack':   ('attacks.ingredient', 'get_attack'),
+    'list_attacks': ('attacks.ingredient', 'list_attacks'),
+    'bomn_attack':  ('attacks.bomn',       'bomn_attack'),
+}
+
+_LAZY_METRICS = {
+    'get_stats':                   ('metrics.analysis',         'get_stats'),
+    'eval_optimality':             ('metrics.distances',        'eval_optimality'),
+    'ensemble_gain':               ('metrics.ensemble',         'ensemble_gain'),
+    'ensemble_distances':          ('metrics.ensemble',         'ensemble_distances'),
+    'compare_attacks':             ('metrics.analysis',         'compare_attacks'),
+    'compute_curves':              ('metrics.analysis',         'compute_curves'),
+    'compute_optimality':          ('metrics.analysis',         'compute_optimality'),
+    'compute_efficiency':          ('metrics.analysis',         'compute_efficiency'),
+    'compute_local_optimality':    ('metrics.optimality',       'compute_local_optimality'),
+    'compare_attacks_optimality':  ('metrics.optimality',       'compare_attacks_optimality'),
+    'compute_global_optimality':   ('metrics.global_optimality','compute_global_optimality'),
+    'create_attack_leaderboard':   ('metrics.global_optimality','create_attack_leaderboard'),
+    'compare_attacks_global':      ('metrics.global_optimality','compare_attacks_global'),
+    'format_leaderboard':          ('metrics.global_optimality','format_leaderboard'),
+}
+
+
+def __getattr__(name: str):
+    # ── Attacks (optional) ───────────────────────────────────────────────
+    if name in _LAZY_ATTACKS:
+        submodule, attr = _LAZY_ATTACKS[name]
+        try:
+            mod = importlib.import_module(f'.{submodule}', __name__)
+            value = getattr(mod, attr)
+        except (ImportError, ModuleNotFoundError) as e:
+            raise ImportError(
+                f"attackbench.{name} requires the 'attacks' subpackage. "
+                f"Install it with: pip install attackbench[attacks]"
+            ) from e
+        globals()[name] = value          # cache for subsequent accesses
+        return value
+
+    # ── Metrics (optional) ───────────────────────────────────────────────
+    if name in _LAZY_METRICS:
+        submodule, attr = _LAZY_METRICS[name]
+        try:
+            mod = importlib.import_module(f'.{submodule}', __name__)
+            value = getattr(mod, attr)
+        except (ImportError, ModuleNotFoundError) as e:
+            raise ImportError(
+                f"attackbench.{name} requires the 'metrics' subpackage. "
+                f"Install it with: pip install attackbench[metrics]"
+            ) from e
+        globals()[name] = value
+        return value
+
+    raise AttributeError(f"module 'attackbench' has no attribute '{name}'")
+
+
+def __dir__():
+    """Support tab-completion for lazy attributes."""
+    public = list(globals().keys())
+    public.extend(_LAZY_ATTACKS.keys())
+    public.extend(_LAZY_METRICS.keys())
+    return public
+
+
 __all__ = [
     'run_attack',
     'get_stats',
@@ -81,6 +123,7 @@ __all__ = [
     'get_model',
     'get_loader',
     'get_attack',
+    'list_attacks',
 
     # Custom components
     'create_custom_attack',
@@ -92,6 +135,10 @@ __all__ = [
     'eval_optimality',
     'ensemble_gain',
     'ensemble_distances',
+    'compare_attacks',
+    'compute_curves',
+    'compute_optimality',
+    'compute_efficiency',
 
     # Stage 3: Local Optimality
     'compute_local_optimality',
