@@ -1,7 +1,8 @@
 Architecture
 ============
 
-AttackBench is organized into several key modules that work together to provide a comprehensive benchmarking framework.
+AttackBench is organized into several key modules that work together to provide a comprehensive
+adversarial attack benchmarking framework.
 
 Overview
 --------
@@ -14,68 +15,122 @@ The framework follows a five-stage evaluation process:
 4. **Results Aggregation**: Aggregate results across models
 5. **Global Ranking**: Rank attacks by global optimality
 
+Package Structure
+-----------------
+
+.. code-block:: text
+
+   attackbench/
+   ├── __init__.py              # Public API with lazy imports
+   ├── run.py                   # Core run_attack() function
+   ├── custom_components.py     # create_custom_attack(), create_iterative_attack()
+   ├── preconfigured.py         # Pre-instantiated attacks (pgd, fgsm, apgd, etc.)
+   ├── compat.py                # NumPy compatibility layer
+   ├── adv_lib_sub.py           # Internal distance metrics and utilities
+   ├── attacks/                 # Attack wrappers and ingredient system
+   │   ├── ingredient.py        # get_attack(), list_attacks() - dynamic attack loading
+   │   ├── bomn.py              # Best-of-MinNorm composite attack
+   │   ├── original/            # Native AttackBench implementations
+   │   ├── art/                 # IBM ART library wrappers
+   │   ├── foolbox/             # Foolbox library wrappers
+   │   ├── torchattacks/        # Torchattacks library wrappers
+   │   ├── adv_lib/             # Adversarial Library wrappers
+   │   ├── cleverhans/          # CleverHans wrappers
+   │   └── deeprobust/          # DeepRobust wrappers
+   ├── datasets/                # Dataset loading
+   │   └── ingredient.py        # get_loader(), get_dataset()
+   ├── models/                  # Model loading
+   │   ├── ingredient.py        # get_model()
+   │   ├── benchmodel_wrapper.py  # BenchModel wrapper
+   │   └── original/            # Custom model implementations
+   ├── metrics/                 # Analysis and evaluation
+   │   ├── analysis.py          # get_stats(), compare_attacks()
+   │   ├── curves.py            # Robust accuracy curves and AUC
+   │   ├── distances.py         # Distance computation and eval_optimality
+   │   ├── ensemble.py          # Ensemble gain metrics
+   │   ├── optimality.py        # Local optimality computation
+   │   ├── global_optimality.py # Global optimality and leaderboard
+   │   └── storage.py           # Results storage utilities
+   └── wandb/                   # W&B integration for results sharing
+
 Core Modules
 ------------
 
-attackbench
-~~~~~~~~~~~
+attackbench (top-level)
+~~~~~~~~~~~~~~~~~~~~~~~
 
-The main package providing the high-level API:
+The main package provides the high-level API through ``__init__.py``. It uses
+PEP 562 lazy imports to keep the base installation lightweight:
 
-- ``run_attack()``: Execute attacks and collect raw results
-- ``get_stats()``: Compute statistics from attack results
-- ``bomn_attack()``: Run Best-of-MinNorm composite attacks
-- ``get_model()``, ``get_loader()``, ``get_attack()``: Load components
+- **Always available** (core):
+  - ``run_attack()``: Execute attacks and collect raw results
+  - ``create_custom_attack()``: Wrap user-defined attack functions
+  - ``get_model()``: Load a model from the model registry
+  - ``get_loader()``: Load a dataset as a DataLoader
+  - ``load_model()``: Load a RobustBench model with metadata
 
-attack_evaluation
-~~~~~~~~~~~~~~~~~
+- **Requires** ``attackbench[attacks]``:
+  - ``get_attack()``: Instantiate library attacks dynamically
+  - ``list_attacks()``: Discover available attacks
+  - ``bomn_attack()``: Best-of-MinNorm composite attack
 
-Contains attack implementations and evaluation logic:
+- **Requires** ``attackbench[metrics]``:
+  - ``get_stats()``: Compute statistics from attack results
+  - ``compute_local_optimality()``, ``compute_global_optimality()``: Optimality metrics
+  - ``create_attack_leaderboard()``, ``format_leaderboard()``: Ranking utilities
+  - ``compare_attacks()``, ``ensemble_gain()``: Multi-attack comparison
 
-**attacks/**
-  Wrappers for attacks from various libraries:
-  
-  - ``original/``: Custom implementations (FMN, ALMA, etc.)
-  - ``art/``: IBM Adversarial Robustness Toolbox wrappers
-  - ``foolbox/``: Foolbox library wrappers
-  - ``torchattacks/``: Torchattacks library wrappers
-  - ``adv_lib/``: Adversarial Library wrappers
-  - ``cleverhans/``: CleverHans wrappers
-  - ``deeprobust/``: DeepRobust wrappers
+- **W&B integration** (always available, requires wandb):
+  - ``upload_precompiled_distances()``, ``download_precompiled_distances()``
+  - ``list_available_distances()``
 
-**datasets/**
-  Dataset loading utilities:
-  
-  - CIFAR-10, CIFAR-100
-  - ImageNet
-  - MNIST
-  - Custom dataset support
+run.py
+~~~~~~
 
-**models/**
-  Model loading and management:
-  
-  - RobustBench integration
-  - Standard models
-  - Robust models
-  - Custom model support
+Contains the core ``run_attack()`` function. Key features:
 
-**metrics/**
-  Evaluation metrics:
-  
-  - Distance computation (L0, L1, L2, L-infinity)
-  - Attack success rate (ASR)
-  - Local optimality
-  - Global optimality
+- **Automatic metadata extraction**: When objects are created via ``get_model()``,
+  ``get_loader()``, and ``get_attack()``, metadata (dataset name, model name,
+  attack name/library) is automatically attached and extracted.
+- **BenchModel wrapping**: Models are automatically wrapped in ``BenchModel`` for
+  query tracking and constraint enforcement.
+- **W&B caching**: If ``use_cached=True`` (default), checks W&B for existing
+  precompiled distances before running the attack.
+- **Minimal output**: Returns only essential data (distances, success flags).
+  Use ``get_stats()`` for analysis.
 
-analysis
-~~~~~~~~
+custom_components.py
+~~~~~~~~~~~~~~~~~~~~
 
-Tools for analyzing and visualizing results:
+Utilities for integrating user-defined attacks:
 
-- ``compile.py``: Aggregate results across experiments
-- ``plot.py``: Visualization utilities
-- ``plot_distances.py``: Plot robust accuracy curves
-- ``utils.py``: Optimality computation helpers
+- ``create_custom_attack()``: Wraps a user function with input validation,
+  output processing, and constraint enforcement (e.g., clamping to [0, 1]).
+- ``create_iterative_attack()``: Builds an iterative attack from a gradient
+  step function, with norm-aware projection for ``linf``, ``l2``, ``l1``, ``l0``.
+
+preconfigured.py
+~~~~~~~~~~~~~~~~
+
+Pre-instantiated attacks for immediate use without external libraries:
+
+- ``pgd``, ``fgsm``, ``apgd``, ``fab``, ``fmn``, ``deepfool``,
+  ``superdeepfool``, ``trust_region``
+
+These are created from the ``original/`` implementations and include
+``_attackbench_name`` and ``_attackbench_lib`` metadata for automatic tracking.
+
+BenchModel Wrapper
+~~~~~~~~~~~~~~~~~~
+
+The ``BenchModel`` class (in ``models/benchmodel_wrapper.py``) wraps any
+``nn.Module`` to provide:
+
+- Forward/backward query counting
+- Timing measurements
+- Minimum distance tracking per norm
+- Box constraint enforcement ([0, 1] input range)
+- Query budget limiting
 
 Attack Format
 -------------
@@ -95,23 +150,26 @@ All attack implementations follow a standardized interface:
 - ``adv_inputs``: ``FloatTensor`` of perturbed inputs in [0, 1]
 
 This standardization ensures fair comparison across different implementations.
+The ``_call_attack()`` helper in ``run.py`` automatically filters kwargs to match
+the attack's signature, so attacks only need to accept the parameters they use.
 
 Results Format
 --------------
 
-The ``run_attack()`` function returns a dictionary with:
+The ``run_attack()`` function returns a dictionary with minimal raw data:
 
-**Essential data:**
+**Essential data (always returned):**
 
-- ``distances``: Dict mapping norm names to lists of distances
-- ``best_optim_distances``: Optimal distances tracked during attack
-- ``adv_success``: Boolean list indicating successful attacks
+- ``distances``: Dict mapping norm names (``'l0'``, ``'l1'``, ``'l2'``, ``'linf'``)
+  to lists of adversarial distances
+- ``best_optim_distances``: Optimal distances tracked by ``BenchModel`` during the attack
+- ``adv_success``: Boolean list indicating successful adversarial examples
 - ``ori_success``: Boolean list indicating originally correct predictions
 
 **Optional metadata** (when ``include_metadata=True``):
 
-- ``original_predictions``: Predictions on clean inputs
-- ``adversarial_predictions``: Predictions on adversarial inputs
+- ``original_predictions``: Model predictions on clean inputs
+- ``adversarial_predictions``: Model predictions on adversarial inputs
 - ``num_forwards``: Forward pass count per sample
 - ``num_backwards``: Backward pass count per sample
 - ``times``: Execution time per sample
@@ -119,8 +177,10 @@ The ``run_attack()`` function returns a dictionary with:
 
 **Optional tensors** (when ``save_adversarial=True``):
 
-- ``adv_inputs``: Adversarial examples
-- ``inputs``: Original inputs
+- ``adv_inputs``: Adversarial examples tensor
+- ``inputs``: Original inputs tensor
+
+For all statistics and analysis, pass results to ``get_stats()``.
 
 Extension Points
 ----------------
@@ -128,38 +188,39 @@ Extension Points
 Custom Attacks
 ~~~~~~~~~~~~~~
 
-Implement custom attacks by providing a callable:
+Use ``create_custom_attack()`` for validated wrappers:
 
 .. code-block:: python
 
-   def my_attack(model, x, y, **kwargs):
+   def my_attack(model, inputs, labels, eps=0.3):
        # Your attack logic
-       return adv_x
+       return adv_inputs
+
+   attack = attackbench.create_custom_attack(my_attack, attack_name="MyAttack")
+
+Or use attacks directly as callables:
+
+.. code-block:: python
+
+   results = attackbench.run_attack(model, dataset, my_attack, 'linf', device)
 
 Custom Datasets
 ~~~~~~~~~~~~~~~
 
-Register custom datasets in ``attack_evaluation/datasets/``:
+Create a standard PyTorch ``DataLoader`` and pass it to ``run_attack()``:
 
 .. code-block:: python
 
-   from .ingredient import dataset_ingredient
-   
-   @dataset_ingredient.named_config
-   def my_dataset():
-       name = 'my_dataset'
-       # Configuration...
+   from torch.utils.data import DataLoader
+
+   loader = DataLoader(my_dataset, batch_size=128, shuffle=False)
+   results = attackbench.run_attack(model, loader, attack, 'linf', device)
 
 Custom Models
 ~~~~~~~~~~~~~
 
-Add model loaders in ``attack_evaluation/models/``:
+Any ``nn.Module`` that accepts inputs in [0, 1] and returns logits works:
 
 .. code-block:: python
 
-   from .ingredient import model_ingredient
-   
-   @model_ingredient.named_config
-   def my_model():
-       name = 'my_model'
-       # Configuration...
+   results = attackbench.run_attack(my_model, dataset, attack, 'linf', device)

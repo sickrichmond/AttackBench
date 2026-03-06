@@ -9,15 +9,17 @@ General Questions
 What is AttackBench?
 ~~~~~~~~~~~~~~~~~~~~
 
-AttackBench is a framework for fairly evaluating and comparing gradient-based adversarial attacks. It provides standardized implementations, optimality metrics, and benchmarking tools.
+AttackBench is a framework for fairly evaluating and comparing gradient-based adversarial attacks.
+It provides standardized implementations, optimality metrics, and benchmarking tools.
 
 Why use AttackBench?
 ~~~~~~~~~~~~~~~~~~~~
 
 - **Fair Comparison**: All attacks run in the same environment with consistent settings
-- **Optimality Metrics**: Beyond ASR, measure how close attacks are to optimal
+- **Optimality Metrics**: Beyond ASR, measure how close attacks are to optimal perturbations
 - **Multiple Libraries**: Compare implementations across ART, Foolbox, Torchattacks, etc.
-- **Reproducibility**: Standardized protocol and precompiled results database
+- **Reproducibility**: Standardized protocol and precompiled results on W&B
+- **Modular Design**: Use only what you need via optional dependency groups
 
 How is this different from existing benchmarks?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -26,48 +28,64 @@ AttackBench focuses on:
 
 1. **Local Optimality**: Comparing attacks on individual samples
 2. **Global Optimality**: Ranking attacks across multiple models
-3. **Implementation Comparison**: Same attack from different libraries
+3. **Implementation Comparison**: Same attack algorithm from different libraries
 4. **Comprehensive Metrics**: Beyond just success rate
 
 Installation Issues
 -------------------
 
-ImportError: No module named 'torch'
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What Python and PyTorch versions are supported?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench requires PyTorch 1.12.1. Install it first:
+AttackBench supports:
 
-.. code-block:: bash
+- Python >= 3.9, < 3.13
+- PyTorch >= 2.4
+- TorchVision >= 0.19
 
-   pip install torch==1.12.1 torchvision==0.13.1
-
-Then install AttackBench:
-
-.. code-block:: bash
-
-   pip install -e .
-
-Conflicts with numpy versions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Some attack libraries require specific numpy versions. Use the version constraints:
+Install the base package:
 
 .. code-block:: bash
 
-   pip install "numpy>=1.21.0,<1.25.0"
+   pip install attackbench
 
-Can't install all attack libraries
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ImportError for optional features
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You don't need all libraries. Install only what you need:
+AttackBench uses lazy imports. If you see an error like
+``attackbench.get_stats requires the 'metrics' subpackage``, install the required extra:
 
 .. code-block:: bash
 
-   # Just the base package
-   pip install -e .
-   
-   # Add specific attack libraries
-   pip install foolbox torchattacks
+   # For analysis features
+   pip install "attackbench[metrics]"
+
+   # For library attack wrappers
+   pip install "attackbench[attacks]"
+
+   # For model loading
+   pip install "attackbench[models]"
+
+   # Everything at once
+   pip install "attackbench[all]"
+
+How do I install adv-lib?
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``adv-lib`` (Adversarial Library) is not available on PyPI. Install it manually:
+
+.. code-block:: bash
+
+   pip install git+https://github.com/jeromerony/adversarial-library
+
+How do I install deeprobust?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``deeprobust`` requires ``scipy<1.8.0`` and is only compatible with Python 3.9:
+
+.. code-block:: bash
+
+   pip install "attackbench[deeprobust]"
 
 Usage Questions
 ---------------
@@ -75,53 +93,84 @@ Usage Questions
 How do I create a custom attack?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Define a function with signature ``(model, x, y, **kwargs) -> adv_x``:
+Define a function with signature ``(model, inputs, labels, **kwargs) -> adv_inputs``:
 
 .. code-block:: python
 
-   def my_attack(model, x, y, eps=0.3):
+   def my_attack(model, inputs, labels, eps=0.3):
        # Your attack logic
        return adversarial_examples
 
-   results = run_attack(model, dataset, my_attack, 'linf', device, eps=0.3)
+   # Option 1: Use directly
+   results = attackbench.run_attack(model, dataset, my_attack, 'linf', device, eps=0.3)
+
+   # Option 2: Wrap with validation
+   wrapped = attackbench.create_custom_attack(my_attack, attack_name="MyAttack")
+   results = attackbench.run_attack(model, dataset, wrapped, 'linf', device, eps=0.3)
 
 What threat models are supported?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- ``'linf'``: L-infinity norm (maximum perturbation per pixel)
-- ``'l2'``: L2 norm (Euclidean distance)
-- ``'l1'``: L1 norm (Manhattan distance)
-- ``'l0'``: L0 norm (number of changed pixels)
+- ``'linf'``: :math:`\ell_\infty` norm (maximum perturbation per pixel)
+- ``'l2'``: :math:`\ell_2` norm (Euclidean distance)
+- ``'l1'``: :math:`\ell_1` norm (Manhattan distance)
+- ``'l0'``: :math:`\ell_0` norm (number of changed pixels)
 
 How do I save adversarial examples?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   results = run_attack(
+   results = attackbench.run_attack(
        model, dataset, attack, 'linf', device,
        save_adversarial=True
    )
-   
+
    # Access adversarial examples
    adv_images = results['adv_inputs']
-   
+
    # Save to disk
    torch.save(adv_images, 'adversarial_examples.pt')
 
 Can I use my own dataset?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes, create a PyTorch DataLoader:
+Yes, create a standard PyTorch ``DataLoader``:
 
 .. code-block:: python
 
    from torch.utils.data import DataLoader
-   
+
    custom_dataset = YourCustomDataset()
    loader = DataLoader(custom_dataset, batch_size=64, shuffle=False)
-   
-   results = run_attack(model, loader, attack, 'linf', device)
+
+   results = attackbench.run_attack(model, loader, attack, 'linf', device)
+
+How do I load models?
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   # Via AttackBench's model registry
+   model = attackbench.get_model('Standard')
+
+   # Via RobustBench with auto-metadata
+   model = attackbench.load_model('Standard', dataset='cifar10', threat_model='Linf')
+
+What does ``run_attack`` return?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, ``run_attack`` returns minimal data:
+
+- ``distances``: Dict of distances per norm
+- ``best_optim_distances``: Best distances tracked during the attack
+- ``adv_success``: Boolean list of successful attacks
+- ``ori_success``: Boolean list of originally correct predictions
+
+Use ``include_metadata=True`` for additional data (queries, times, predictions).
+Use ``save_adversarial=True`` to include adversarial tensors.
+
+For statistics, pass results to ``attackbench.get_stats(results, threat_model)``.
 
 Performance Questions
 ---------------------
@@ -133,7 +182,7 @@ Tips for faster execution:
 
 1. Use GPU: ``device = torch.device('cuda')``
 2. Increase batch size: ``batch_size=128`` (if memory allows)
-3. Reduce iterations for iterative attacks
+3. Enable W&B caching: ``use_cached=True`` (default) skips runs if results exist
 4. Use compiled models when possible
 
 Out of memory errors
@@ -143,22 +192,7 @@ Solutions:
 
 1. Reduce batch size
 2. Process smaller subsets: ``num_samples=100``
-3. Enable gradient checkpointing if available
-4. Use CPU if GPU memory is insufficient
-
-How do I parallelize across multiple GPUs?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Currently, AttackBench runs on a single device. For multi-GPU:
-
-.. code-block:: python
-
-   # Split dataset manually
-   results = []
-   for gpu_id in range(num_gpus):
-       device = torch.device(f'cuda:{gpu_id}')
-       dataset_split = get_split(dataset, gpu_id, num_gpus)
-       results.append(run_attack(model, dataset_split, attack, 'linf', device))
+3. Use CPU if GPU memory is insufficient: ``device=torch.device('cpu')``
 
 Results and Analysis
 --------------------
@@ -166,11 +200,12 @@ Results and Analysis
 What is Attack Success Rate (ASR)?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-ASR is the percentage of correctly classified samples that were successfully misclassified by the attack:
+ASR is the percentage of correctly classified samples that were successfully
+misclassified by the attack:
 
 .. math::
 
-   ASR = \\frac{\\text{# successful attacks}}{\\text{# originally correct}} \\times 100\\%
+   \text{ASR} = \frac{\text{\# successful attacks}}{\text{\# originally correct}} \times 100\%
 
 How is optimality computed?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -179,21 +214,9 @@ Local optimality compares attacks per sample:
 
 .. math::
 
-   \\text{Optimality} = \\frac{\\text{best distance among all attacks}}{\\text{this attack's distance}}
+   \text{Optimality} = \frac{\text{best distance among all attacks}}{\text{this attack's distance}}
 
 See :doc:`optimality` for details.
-
-Can I access raw perturbations?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Yes, when ``save_adversarial=True``:
-
-.. code-block:: python
-
-   results = run_attack(model, dataset, attack, 'linf', device, 
-                        save_adversarial=True)
-   
-   perturbations = results['adv_inputs'] - results['inputs']
 
 W&B Integration
 ---------------
@@ -205,17 +228,16 @@ Only if you want to:
 
 - Upload your attack results to the shared database
 - Download precompiled distances from the leaderboard
+- Use automatic caching in ``run_attack()``
 
-The core functionality works without W&B.
+The core functionality (running attacks, analysis) works without W&B.
 
 How do I upload my results?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   from attackbench import upload_precompiled_distances
-   
-   upload_precompiled_distances(
+   attackbench.upload_precompiled_distances(
        attack_data=results,
        dataset='cifar10',
        threat_model='linf',
@@ -226,7 +248,8 @@ How do I upload my results?
 Can I use AttackBench offline?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes. W&B features are optional. Run attacks and analyze results locally without internet.
+Yes. Set ``use_cached=False`` in ``run_attack()`` to skip W&B checks.
+All core functionality works locally.
 
 Contributing
 ------------
@@ -234,20 +257,12 @@ Contributing
 How can I add a new attack?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Create implementation in ``attack_evaluation/attacks/``
-2. Follow the standard interface
-3. Add tests
-4. Submit a pull request
+1. Create implementation in ``attackbench/attacks/<library>/``
+2. Follow the standard interface: ``(model, inputs, labels, ...) -> adv_inputs``
+3. Register via a config/getter function
+4. Add tests and submit a pull request
 
 See :doc:`contributing` for details.
-
-How can I add a new model?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-1. Add model loading code in ``attack_evaluation/models/``
-2. Register it in the configuration
-3. Test with existing attacks
-4. Submit a pull request
 
 Where do I report bugs?
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -264,8 +279,8 @@ How do I cite AttackBench?
 
    @inproceedings{cina2025attackbench,
      title={Attackbench: Evaluating gradient-based attacks for adversarial examples},
-     author={Cin{\`a}, Antonio Emanuele and Rony, J{\'e}r{\^o}me and Pintor, Maura and 
-             Demetrio, Luca and Demontis, Ambra and Biggio, Battista and 
+     author={Cin{\`a}, Antonio Emanuele and Rony, J{\'e}r{\^o}me and Pintor, Maura and
+             Demetrio, Luca and Demontis, Ambra and Biggio, Battista and
              Ayed, Ismail Ben and Roli, Fabio},
      booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
      volume={39},

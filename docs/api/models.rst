@@ -3,7 +3,18 @@ Models
 
 This module provides model loading and management utilities.
 
-.. automodule:: attack_evaluation.models
+Model Loading
+-------------
+
+.. automodule:: attackbench.models.ingredient
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+BenchModel Wrapper
+------------------
+
+.. automodule:: attackbench.models.benchmodel_wrapper
    :members:
    :undoc-members:
    :show-inheritance:

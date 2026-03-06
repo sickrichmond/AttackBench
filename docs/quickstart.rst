@@ -6,41 +6,52 @@ This guide will help you get started with AttackBench.
 Basic Setup
 -----------
 
-First, import the required modules and setup your environment:
+First, import the required modules and set up your environment:
 
 .. code-block:: python
 
    import torch
-   from attackbench import run_attack, get_stats
-   from robustbench import load_model
-   from attackbench import get_loader
+   import attackbench
 
    # Setup device
    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-   # Load a pre-trained model
-   model = load_model(model_name='Standard', dataset='cifar10', threat_model='Linf')
+   # Load a pre-trained model (requires attackbench[models])
+   model = attackbench.get_model('Standard')
    model.to(device)
 
    # Load dataset
-   dataset = get_loader(
+   dataset = attackbench.get_loader(
        dataset='cifar10',
-       batch_size=100,
-       num_samples=100,
-       random_subset=True
+       batch_size=128,
+       num_samples=1000
+   )
+
+You can also load models directly from RobustBench:
+
+.. code-block:: python
+
+   # Load a RobustBench model with auto-metadata
+   model = attackbench.load_model(
+       model_name='Standard',
+       dataset='cifar10',
+       threat_model='Linf'
    )
 
 Running a Simple Attack
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
-Run a PGD attack and analyze the results:
+Using Preconfigured Attacks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AttackBench ships with preconfigured attacks that are ready to use out of the box:
 
 .. code-block:: python
 
    from attackbench.attacks import pgd
 
    # Run PGD attack
-   results = run_attack(
+   results = attackbench.run_attack(
        model=model,
        dataset=dataset,
        attack=pgd,
@@ -48,84 +59,123 @@ Run a PGD attack and analyze the results:
        device=device
    )
 
-   # Get attack statistics
-   stats = get_stats(results, 'linf')
+   # Analyze results (requires attackbench[metrics])
+   stats = attackbench.get_stats(results, 'linf')
 
-   print(f"Attack Success Rate: {stats['ASR']*100:.1f}%")
-   print(f"Mean L-infinity distance: {stats['linf_mean_distance']:.4f}")
-   print(f"Median L-infinity distance: {stats['linf_median_distance']:.4f}")
+   print(f"Attack Success Rate: {stats['asr']*100:.1f}%")
+   print(f"Model Accuracy: {stats['accuracy']*100:.1f}%")
 
-Using the Command Line
-----------------------
-
-AttackBench provides a command-line interface for running benchmarks using Sacred:
-
-.. code-block:: bash
-
-   # Run FMN attack from adv_lib against augustin_2020 model
-   python -m attack_evaluation.run -F results_dir/ with \
-       model.augustin_2020 \
-       attack.adv_lib_fmn \
-       attack.threat_model="l2" \
-       dataset.num_samples=1000 \
-       dataset.batch_size=64 \
-       seed=42
-
-Command breakdown:
-
-- ``-F results_dir/``: Directory where results will be saved
-- ``with``: Sacred keyword for configuration
-- ``model.augustin_2020``: Target model to attack
-- ``attack.adv_lib_fmn``: FMN attack from adv_lib library
-- ``attack.threat_model="l2"``: L2 threat model
-- ``dataset.num_samples=1000``: Number of samples to attack
-- ``dataset.batch_size=64``: Batch size for processing
-- ``seed=42``: Random seed for reproducibility
-
-Available Attacks
------------------
-
-AttackBench supports multiple attack implementations from various libraries:
+Available preconfigured attacks:
 
 .. code-block:: python
 
    from attackbench.attacks import (
-       pgd,        # Projected Gradient Descent
-       fgsm,       # Fast Gradient Sign Method
-       apgd,       # Auto-PGD
-       deepfool,   # DeepFool
-       cw_l2,      # Carlini-Wagner L2
-       fab,        # Fast Adaptive Boundary
+       pgd,            # Projected Gradient Descent
+       fgsm,           # Fast Gradient Sign Method
+       apgd,           # Auto-PGD
+       fab,            # Fast Adaptive Boundary
+       fmn,            # Fast Minimum Norm
+       deepfool,       # DeepFool
+       superdeepfool,  # SuperDeepFool
+       trust_region,   # Trust Region
    )
 
-Comparing Multiple Attacks
---------------------------
+Using Library Attacks
+~~~~~~~~~~~~~~~~~~~~~
+
+To use attacks from external libraries (requires ``attackbench[attacks]``):
 
 .. code-block:: python
 
-   attacks_to_compare = [
-       ('PGD', pgd),
-       ('FGSM', fgsm),
-       ('APGD', apgd)
-   ]
+   # List all available attacks
+   all_attacks = attackbench.list_attacks()
 
-   print(f"{'Attack':<10} {'ASR':<8} {'Mean Linf':<12}")
-   print("-" * 30)
+   # List attacks for a specific threat model
+   linf_attacks = attackbench.list_attacks(threat_model='linf')
 
-   for name, attack in attacks_to_compare:
-       results = run_attack(
-           model=model,
-           dataset=dataset,
-           attack=attack,
-           threat_model='linf',
-           device=device
-       )
-       stats = get_stats(results, 'linf')
-       print(f"{name:<10} {stats['ASR']*100:<8.1f} {stats['linf_mean_distance']:<12.6f}")
+   # List attacks from a specific library
+   art_attacks = attackbench.list_attacks(lib='art')
+
+   # Get a specific attack
+   fmn_adv_lib = attackbench.get_attack(
+       lib='adv_lib',
+       attack='fmn',
+       threat_model='l2'
+   )
+
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=fmn_adv_lib,
+       threat_model='l2',
+       device=device
+   )
+
+Creating a Custom Attack
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can wrap your own attack function for use with AttackBench:
+
+.. code-block:: python
+
+   import torch.nn.functional as F
+
+   def my_pgd(model, inputs, labels, eps=0.3, steps=40):
+       adv_inputs = inputs.clone()
+       alpha = eps / steps
+       for _ in range(steps):
+           adv_inputs.requires_grad_(True)
+           loss = F.cross_entropy(model(adv_inputs), labels)
+           grad = torch.autograd.grad(loss, adv_inputs)[0]
+           adv_inputs = (adv_inputs + alpha * grad.sign()).detach()
+           adv_inputs = torch.clamp(adv_inputs, inputs - eps, inputs + eps)
+           adv_inputs = torch.clamp(adv_inputs, 0, 1)
+       return adv_inputs
+
+   # Wrap with validation and constraint enforcement
+   custom_attack = attackbench.create_custom_attack(
+       my_pgd,
+       attack_name="MyPGD"
+   )
+
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=custom_attack,
+       threat_model='linf',
+       device=device
+   )
+
+Analyzing Results
+-----------------
+
+.. code-block:: python
+
+   # Basic statistics (requires attackbench[metrics])
+   stats = attackbench.get_stats(results, 'linf')
+
+   # Compare multiple attacks
+   results_pgd = attackbench.run_attack(model, dataset, pgd, 'linf', device)
+   results_apgd = attackbench.run_attack(model, dataset, apgd, 'linf', device)
+
+   comparison = attackbench.compare_attacks(
+       [results_pgd, results_apgd],
+       threat_model='linf'
+   )
+
+Using the Command Line
+----------------------
+
+AttackBench provides a CLI entry point for running attacks:
+
+.. code-block:: bash
+
+   run_attack --help
 
 Next Steps
 ----------
 
-- See :doc:`api/index` for detailed API documentation
-- Check :doc:`examples` for more complex usage scenarios including custom attacks
+- See :doc:`examples` for more complex usage scenarios
+- Read :doc:`optimality` to understand the local and global optimality metrics
+- Check :doc:`api/index` for detailed API documentation
 - Read the full paper at https://arxiv.org/pdf/2404.19460

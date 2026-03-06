@@ -3,64 +3,148 @@ Examples
 
 This section provides practical examples of using AttackBench.
 
+Running Preconfigured Attacks
+-----------------------------
+
+AttackBench includes ready-to-use attack implementations that do not require
+any external attack library:
+
+.. code-block:: python
+
+   import torch
+   import attackbench
+   from attackbench.attacks import pgd, apgd, fmn, fab, deepfool
+
+   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+   # Load model and dataset
+   model = attackbench.get_model('Standard')
+   model.to(device)
+
+   dataset = attackbench.get_loader(
+       dataset='cifar10',
+       batch_size=128,
+       num_samples=1000
+   )
+
+   # Run an attack
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device
+   )
+
+   # Analyze results (requires attackbench[metrics])
+   stats = attackbench.get_stats(results, 'linf')
+   print(f"ASR: {stats['asr']*100:.1f}%")
+
+Using Library Attacks
+---------------------
+
+Use attacks from external libraries via the dynamic attack loading system
+(requires ``attackbench[attacks]``):
+
+.. code-block:: python
+
+   # Discover available attacks
+   all_attacks = attackbench.list_attacks()
+   print(f"Total available attacks: {len(all_attacks)}")
+
+   # Filter by threat model or library
+   linf_attacks = attackbench.list_attacks(threat_model='linf')
+   foolbox_attacks = attackbench.list_attacks(lib='foolbox')
+
+   # Instantiate and run an attack from a specific library
+   art_pgd = attackbench.get_attack(lib='art', attack='pgd', threat_model='linf')
+
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=art_pgd,
+       threat_model='linf',
+       device=device
+   )
+
 Custom Attack Implementation
 -----------------------------
 
 Creating Your Own Attack
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Custom attacks must be callables that accept ``(model, x, y, **kwargs)`` and return adversarial examples:
+Custom attacks must be callables that accept ``(model, inputs, labels, **kwargs)``
+and return adversarial examples:
 
 .. code-block:: python
 
    import torch
+   import torch.nn.functional as F
 
-   def my_custom_attack(model, x, y, eps=0.3, alpha=0.01, steps=40):
+   def my_custom_pgd(model, inputs, labels, eps=0.3, alpha=0.01, steps=40):
        """
-       Simple PGD-like attack implementation.
-       
+       Simple PGD attack implementation.
+
        Args:
            model: Target model
-           x: Input images (batch)
-           y: True labels
+           inputs: Input images (batch)
+           labels: True labels
            eps: Maximum perturbation
            alpha: Step size
            steps: Number of iterations
-       
+
        Returns:
            Adversarial examples
        """
-       adv_x = x.clone().detach()
-       
+       adv_inputs = inputs.clone().detach()
+
        for _ in range(steps):
-           adv_x.requires_grad = True
-           output = model(adv_x)
-           loss = torch.nn.CrossEntropyLoss()(output, y)
-           loss.backward()
-           
-           # PGD update
-           adv_x = adv_x + alpha * adv_x.grad.sign()
-           adv_x = torch.clamp(adv_x, x - eps, x + eps)
-           adv_x = torch.clamp(adv_x, 0, 1).detach()
-       
-       return adv_x
+           adv_inputs.requires_grad_(True)
+           loss = F.cross_entropy(model(adv_inputs), labels)
+           grad = torch.autograd.grad(loss, adv_inputs)[0]
 
-   # Use your custom attack
-   from attackbench import run_attack, get_stats
+           adv_inputs = (adv_inputs + alpha * grad.sign()).detach()
+           adv_inputs = torch.clamp(adv_inputs, inputs - eps, inputs + eps)
+           adv_inputs = torch.clamp(adv_inputs, 0, 1)
 
-   results = run_attack(
+       return adv_inputs
+
+Using ``create_custom_attack`` for validation:
+
+.. code-block:: python
+
+   # Wrap with input validation and constraint enforcement
+   custom_attack = attackbench.create_custom_attack(
+       my_custom_pgd,
+       validate_inputs=True,
+       enforce_constraints=True,
+       attack_name="MyPGD"
+   )
+
+   results = attackbench.run_attack(
        model=model,
        dataset=dataset,
-       attack=my_custom_attack,
+       attack=custom_attack,
        threat_model='linf',
        device=device,
-       eps=0.3,  # Custom parameter
+       eps=0.3,
        alpha=0.01,
        steps=40
    )
 
-   stats = get_stats(results, 'linf')
-   print(f"Custom Attack ASR: {stats['ASR']*100:.1f}%")
+Or use the attack function directly — ``run_attack`` will automatically
+filter kwargs to match the function's signature:
+
+.. code-block:: python
+
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=my_custom_pgd,
+       threat_model='linf',
+       device=device,
+       eps=0.3
+   )
 
 BoMN: Best-of-MinNorm Attack
 -----------------------------
@@ -69,30 +153,60 @@ Run multiple attacks and select the best result per sample:
 
 .. code-block:: python
 
-   from attackbench import bomn_attack
-   from attackbench.attacks import pgd, apgd, deepfool
-   import numpy as np
+   from attackbench.attacks import pgd, apgd, fmn
 
-   # Run BoMN with 3 attacks
-   results_bomn = bomn_attack(
+   results_bomn = attackbench.bomn_attack(
        model=model,
        dataset=dataset,
-       attacks=[pgd, apgd, deepfool],
+       attacks=[pgd, apgd, fmn],
        threat_model='linf',
-       device=device,
-       verbose=True
+       device=device
    )
 
+   # BoMN selects the minimum-distance successful adversarial per sample
+   # By definition, it achieves LocalOpt = 1.0 for all samples
+
    # Analyze which attack won for each sample
+   import numpy as np
+
    attack_names = results_bomn['attack_names']
    best_indices = np.array(results_bomn['best_attack_indices'])
    n_successful = sum(results_bomn['adv_success'])
 
-   print("\nWins per attack:")
+   print("Wins per attack:")
    for i, name in enumerate(attack_names):
        wins = (best_indices == i).sum()
        pct = 100.0 * wins / n_successful if n_successful > 0 else 0.0
        print(f"  {name}: {wins} samples ({pct:.1f}%)")
+
+Comparing Multiple Attacks
+--------------------------
+
+.. code-block:: python
+
+   from attackbench.attacks import pgd, apgd, fab
+
+   attacks_to_compare = {
+       'PGD': pgd,
+       'APGD': apgd,
+       'FAB': fab
+   }
+
+   all_results = {}
+   for name, attack in attacks_to_compare.items():
+       all_results[name] = attackbench.run_attack(
+           model=model,
+           dataset=dataset,
+           attack=attack,
+           threat_model='linf',
+           device=device
+       )
+
+   # Compare attacks (requires attackbench[metrics])
+   comparison = attackbench.compare_attacks(
+       list(all_results.values()),
+       threat_model='linf'
+   )
 
 W&B Integration
 ---------------
@@ -102,97 +216,104 @@ Upload and Download Attack Results
 
 .. code-block:: python
 
-   from attackbench import upload_precompiled_distances, download_precompiled_distances
-
    # Upload your attack results to W&B
-   upload_precompiled_distances(
+   attackbench.upload_precompiled_distances(
        attack_data=results,
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard',
-       attack_name='pgd',
-       overwrite=True
+       attack_name='pgd'
    )
 
    # Download precompiled distances from W&B
-   distances = download_precompiled_distances(
+   distances = attackbench.download_precompiled_distances(
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard',
        attack_name='pgd',
-       n_samples=100
+       n_samples=1000
    )
 
-   print(f"Downloaded: ASR={distances['ASR']:.2%}")
+   # List all available distances on W&B
+   available = attackbench.list_available_distances()
 
-Running Benchmarks via CLI
----------------------------
+W&B Caching
+~~~~~~~~~~~~
 
-CIFAR-10 Benchmarks
-~~~~~~~~~~~~~~~~~~~
-
-L-infinity attack on CIFAR-10:
-
-.. code-block:: bash
-
-   python -m attack_evaluation.run -F results_dir/ with \
-       model.Standard \
-       attack.pgd \
-       attack.threat_model="linf" \
-       dataset.cifar10 \
-       dataset.num_samples=1000 \
-       dataset.batch_size=128
-
-L2 attack on CIFAR-10:
-
-.. code-block:: bash
-
-   python -m attack_evaluation.run -F results_dir/ with \
-       model.augustin_2020 \
-       attack.adv_lib_fmn \
-       attack.threat_model="l2" \
-       dataset.num_samples=1000 \
-       dataset.batch_size=64
-
-ImageNet Benchmarks
-~~~~~~~~~~~~~~~~~~~
-
-L-infinity attack on ImageNet:
-
-.. code-block:: bash
-
-   python -m attack_evaluation.run -F results_dir/ with \
-       model.resnet50 \
-       attack.apgd \
-       attack.threat_model="linf" \
-       dataset.imagenet \
-       dataset.num_samples=1000
-
-Detailed Statistics
--------------------
-
-Comprehensive Attack Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+By default, ``run_attack()`` checks W&B for cached results before running:
 
 .. code-block:: python
 
-   from attackbench import get_stats
+   # Automatic caching (default: use_cached=True)
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device
+   )
+   # If precompiled results exist on W&B, returns them immediately
 
-   # Get comprehensive statistics
-   stats = get_stats(results, 'linf', include_optimality=False)
+   # Disable caching to force re-running
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device,
+       use_cached=False
+   )
 
-   print("Attack Statistics:")
-   print(f"  Attack Success Rate (ASR): {stats['ASR']*100:.1f}%")
-   print(f"  Model Accuracy: {stats['accuracy']*100:.1f}%")
-   print(f"  Mean distance: {stats['linf_mean_distance']:.6f}")
-   print(f"  Median distance: {stats['linf_median_distance']:.6f}")
-   print(f"  Max distance: {stats['linf_max_distance']:.6f}")
-   print(f"  Min distance: {stats['linf_min_distance']:.6f}")
-   
-   # Distance statistics for successful attacks only
-   print(f"\nSuccessful attacks only:")
-   print(f"  Mean distance: {stats['linf_mean_successful_distance']:.6f}")
-   print(f"  Median distance: {stats['linf_median_successful_distance']:.6f}")
+Saving Results to Disk
+----------------------
+
+.. code-block:: python
+
+   # Save results as JSON + .pt files
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device,
+       save_results=True,
+       output_dir='./my_results/'
+   )
+
+   # Include adversarial examples in output
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device,
+       save_adversarial=True
+   )
+
+   # Access adversarial examples
+   adv_images = results['adv_inputs']
+
+Including Metadata
+------------------
+
+By default, ``run_attack()`` returns minimal data. Request additional metadata:
+
+.. code-block:: python
+
+   results = attackbench.run_attack(
+       model=model,
+       dataset=dataset,
+       attack=apgd,
+       threat_model='linf',
+       device=device,
+       include_metadata=True
+   )
+
+   # Now includes:
+   # - original_predictions, adversarial_predictions
+   # - num_forwards, num_backwards (query counts)
+   # - times (execution time per sample)
+   # - hashes (sample identifiers)
 
 Multi-Model Evaluation
 ----------------------
@@ -201,28 +322,19 @@ Evaluate an attack across multiple models:
 
 .. code-block:: python
 
-   from robustbench import load_model
-   
-   models = [
-       ('Standard', 'Standard'),
-       ('Carmon2019', 'Carmon2019Unlabeled'),
-       ('Wong2020', 'Wong2020Fast'),
-   ]
+   models_to_test = ['Standard', 'Carmon2019Unlabeled', 'Wong2020Fast']
 
-   print(f"{'Model':<20} {'ASR':<8} {'Mean Dist':<12}")
-   print("-" * 40)
-
-   for name, model_id in models:
-       model = load_model(model_name=model_id, dataset='cifar10', threat_model='Linf')
+   for model_name in models_to_test:
+       model = attackbench.get_model(model_name)
        model.to(device)
-       
-       results = run_attack(
+
+       results = attackbench.run_attack(
            model=model,
            dataset=dataset,
-           attack=pgd,
+           attack=apgd,
            threat_model='linf',
            device=device
        )
-       
-       stats = get_stats(results, 'linf')
-       print(f"{name:<20} {stats['ASR']*100:<8.1f} {stats['linf_mean_distance']:<12.6f}")
+
+       stats = attackbench.get_stats(results, 'linf')
+       print(f"{model_name}: ASR={stats['asr']*100:.1f}%")

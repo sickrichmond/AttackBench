@@ -9,7 +9,7 @@ This directory contains the Sphinx documentation for AttackBench.
 Install the documentation dependencies:
 
 ```bash
-pip install -e ".[docs]"
+pip install "attackbench[docs]"
 ```
 
 Or install from the requirements file:
@@ -65,28 +65,18 @@ docs/
 ├── architecture.rst     # System architecture
 ├── optimality.rst       # Optimality metrics
 ├── examples.rst         # Usage examples
-├── faq.rst             # Frequently asked questions
+├── faq.rst              # Frequently asked questions
 ├── contributing.rst     # Contributing guide
-├── api/                # API reference
+├── api/                 # API reference
 │   ├── index.rst
 │   ├── attacks.rst
 │   ├── datasets.rst
 │   ├── models.rst
 │   ├── metrics.rst
 │   └── analysis.rst
-├── _static/            # Static files (CSS, images, etc.)
-└── _templates/         # Custom templates
+├── _static/             # Static files (CSS, images, etc.)
+└── _templates/          # Custom templates
 ```
-
-## Read the Docs
-
-The documentation is automatically built and hosted on Read the Docs when changes are pushed to the repository.
-
-**Live Documentation**: https://attackbench.readthedocs.io (or your configured URL)
-
-### Configuration
-
-The Read the Docs build is configured in `.readthedocs.yaml` at the repository root.
 
 ## Writing Documentation
 
@@ -126,13 +116,13 @@ API documentation is auto-generated from Python docstrings using Sphinx autodoc.
 def my_function(param1, param2):
     """
     Brief description.
-    
+
     Longer description if needed.
-    
+
     Args:
         param1: Description of param1
         param2: Description of param2
-    
+
     Returns:
         Description of return value
     """
@@ -148,7 +138,7 @@ def my_function(param1, param2):
 
 ### Import Errors
 
-If you get import errors when building, the conf.py includes mocking for heavy dependencies. Add any missing dependencies to the `MOCK_MODULES` list in `conf.py`.
+If you get import errors when building, `conf.py` includes mocking for heavy dependencies. Add any missing dependencies to the `MOCK_MODULES` list in `conf.py`.
 
 ### Autodoc Warnings
 
@@ -163,15 +153,6 @@ The documentation uses `sphinx_rtd_theme`. If you see theme errors:
 ```bash
 pip install sphinx-rtd-theme
 ```
-
-## Contributing
-
-When adding new features, please update the relevant documentation:
-
-1. Add API docstrings to your code
-2. Update or create relevant guide pages
-3. Add examples if appropriate
-4. Build and test locally before committing
 
 ## Resources
 
