@@ -3,6 +3,11 @@ Examples
 
 This section provides practical examples of using AttackBench.
 
+.. tip::
+
+   A comprehensive interactive tutorial is available as a Google Colab notebook:
+   `Open Tutorial in Colab <https://colab.research.google.com/drive/1rzzLRjMovcns25qOeEXt15R3L2Md_Pst?usp=sharing>`_
+
 Running Preconfigured Attacks
 -----------------------------
 

@@ -11,6 +11,8 @@ based on their security evaluation curves and local optimality metrics.
 
 **PyPI**: https://pypi.org/project/attackbench/
 
+**Tutorial Notebook**: `Open in Google Colab <https://colab.research.google.com/drive/1rzzLRjMovcns25qOeEXt15R3L2Md_Pst?usp=sharing>`_
+
 Overview
 --------
 
