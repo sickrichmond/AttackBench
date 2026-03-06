@@ -51,57 +51,91 @@ Legend:
 
 
 
-## Requirements and Installations 
+## Requirements and Installation
 
-- python==3.9
-- sacred
-- pytorch==1.12.1
-- torchvision==0.13.1
-- adversarial-robustness-toolbox
-- foolbox
-- torchattacks
-- cleverhans
-- deeprobust
-- robustbench https://github.com/RobustBench/robustbench
-- adv_lib https://github.com/jeromerony/adversarial-library
+- Python >= 3.9, < 3.13
+- PyTorch >= 2.4
+- TorchVision >= 0.19
+- CUDA compatible GPU (recommended)
 
-Clone the Repository:
+### Install from PyPI
+
 ```bash
-git clone https://github.com/attackbench/attackbench.git
-cd attackbench
+pip install attackbench
 ```
 
-Use the provided `environment.yml` file to create a Conda environment with the required dependencies:
+### Optional dependencies
+
 ```bash
-conda env create -f environment.yml
+# Attack library wrappers (ART, Foolbox, Torchattacks, CleverHans, RobustBench)
+pip install "attackbench[attacks]"
+
+# Model loading utilities (RobustBench, timm, transformers)
+pip install "attackbench[models]"
+
+# Analysis and visualization tools (scikit-learn, seaborn, plotly)
+pip install "attackbench[metrics]"
+
+# Everything (attacks + models + metrics)
+pip install "attackbench[all]"
 ```
 
-Activate the Conda environment: 
+> **Note:** `adv-lib` is not on PyPI. Install it manually if needed:
+> `pip install git+https://github.com/jeromerony/adversarial-library`
+>
+> `deeprobust` requires `scipy<1.8.0` and only works on Python 3.9:
+> `pip install "attackbench[deeprobust]"`
+
+### Install from source (development)
+
 ```bash
-conda activate attackbench
+git clone https://github.com/attackbench/AttackBench.git
+cd AttackBench
+pip install -e ".[dev]"
 ```
 
 
 ## Usage
 
-To run the FMN-$\ell_2$ attack implemented within the <code>adversarial lib</code> library against the <code>augustin_2020</code> DDN on CIFAR10 and save the results in the `results_dir/` directory:
+```python
+import torch
+import attackbench
+from attackbench.attacks import apgd
 
-```bash
-conda activate attackbench
-python -m attack_evaluation.run  -F results_dir/ with model.augustin_2020 attack.adv_lib_fmn attack.threat_model="l2" dataset.num_samples=1000 dataset.batch_size=64 seed=42
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Load model and dataset
+model = attackbench.get_model('Standard')
+model.to(device)
+
+dataset = attackbench.get_loader(dataset='cifar10', batch_size=128, num_samples=1000)
+
+# Run attack
+results = attackbench.run_attack(
+    model=model,
+    dataset=dataset,
+    attack=apgd,
+    threat_model='linf',
+    device=device
+)
+
+# Analyze results (requires attackbench[metrics])
+stats = attackbench.get_stats(results, 'linf')
+print(f"ASR: {stats['asr']*100:.1f}%")
 ```
 
-Command Breakdown:
-- `-F results_dir/`: Specifies the directory results_dir/ where the attack results will be saved.
-- `with`: Keyword for sacred.
-- `model.augustin_2020`: Specifies the target model augustin_2020 to be attacked.
-- `attack.adv_lib_fmn`: Indicates the use of the FMN attack from the adv_lib library.
-- `attack.threat_model="l2"`: Sets the threat model to $\ell_2$, constraining adversarial perturbations based on the $\ell_2$ norm.
-- `dataset.num_samples=1000`: Specifies the number of samples to use from the CIFAR-10 dataset during the attack.
-- `dataset.batch_size=64`: Sets the batch size for processing the dataset during the attack.
-- `seed=42`: Sets the random seed for reproducibility.
+Preconfigured attacks available out of the box: `pgd`, `fgsm`, `apgd`, `fab`, `fmn`, `deepfool`, `superdeepfool`, `trust_region`.
 
-After the attack completes, you can find the results saved in the specified results_dir/ directory.
+To use attacks from external libraries (requires `attackbench[attacks]`):
+
+```python
+# List available attacks
+attacks = attackbench.list_attacks(threat_model='linf')
+
+# Load a specific library attack
+art_pgd = attackbench.get_attack(lib='art', attack='pgd', threat_model='linf')
+results = attackbench.run_attack(model=model, dataset=dataset, attack=art_pgd, threat_model='linf', device=device)
+```
 
 
 
