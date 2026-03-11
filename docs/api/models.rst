@@ -6,7 +6,7 @@ This module provides model loading and management utilities.
 Model Loading
 -------------
 
-.. automodule:: attackbench.models.ingredient
+.. automodule:: attackbench.models.registry
    :members:
    :undoc-members:
    :show-inheritance:

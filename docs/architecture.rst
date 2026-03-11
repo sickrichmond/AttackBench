@@ -27,8 +27,8 @@ Package Structure
    ├── preconfigured.py         # Pre-instantiated attacks (pgd, fgsm, apgd, etc.)
    ├── compat.py                # NumPy compatibility layer
    ├── adv_lib_sub.py           # Internal distance metrics and utilities
-   ├── attacks/                 # Attack wrappers and ingredient system
-   │   ├── ingredient.py        # get_attack(), list_attacks() - dynamic attack loading
+   ├── attacks/                 # Attack wrappers and registry system
+   │   ├── registry.py          # get_attack(), list_attacks() - dynamic attack loading
    │   ├── bomn.py              # Best-of-MinNorm composite attack
    │   ├── original/            # Native AttackBench implementations
    │   ├── art/                 # IBM ART library wrappers
@@ -38,9 +38,9 @@ Package Structure
    │   ├── cleverhans/          # CleverHans wrappers
    │   └── deeprobust/          # DeepRobust wrappers
    ├── datasets/                # Dataset loading
-   │   └── ingredient.py        # get_loader(), get_dataset()
+   │   └── registry.py          # get_loader(), get_dataset()
    ├── models/                  # Model loading
-   │   ├── ingredient.py        # get_model()
+   │   ├── registry.py          # get_model()
    │   ├── benchmodel_wrapper.py  # BenchModel wrapper
    │   └── original/            # Custom model implementations
    ├── metrics/                 # Analysis and evaluation

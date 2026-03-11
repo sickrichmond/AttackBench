@@ -23,8 +23,8 @@ from .run import run_attack
 from .custom_components import create_custom_attack
 
 # ── Helpers to load objects (always available) ───────────────────────────
-from .datasets.ingredient import get_loader
-from .models.ingredient import get_model
+from .datasets.registry import get_loader
+from .models.registry import get_model
 
 # ── RobustBench integration ─────────────────────────────────────────────
 def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
@@ -51,8 +51,8 @@ from .wandb import (
 # If the subpackage is not installed, a clear ImportError is raised.
 
 _LAZY_ATTACKS = {
-    'get_attack':   ('attacks.ingredient', 'get_attack'),
-    'list_attacks': ('attacks.ingredient', 'list_attacks'),
+    'get_attack':   ('attacks.registry', 'get_attack'),
+    'list_attacks': ('attacks.registry', 'list_attacks'),
     'bomn_attack':  ('attacks.bomn',       'bomn_attack'),
 }
 

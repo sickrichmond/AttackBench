@@ -1,6 +1,6 @@
 # **AttackBench**: Evaluating Gradient-based Attacks for Adversarial Examples
 
-Antonio Emanuele Cinà $^\star$, Jérôme Rony $^\star$, Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed, and Fabio Roli 
+Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed, Fabio Roli, and Riccardo Trebiani
 
 **Leaderboard**: [https://attackbench.github.io/](https://attackbench.github.io/)
 
@@ -24,25 +24,26 @@ The <code>AttackBench</code> framework wants to fairly compare gradient-based at
 
 ## Currently implemented
 
-| Attack  | Original | Advertorch | Adv_lib | ART | CleverHans | DeepRobust | Foolbox | Torchattacks |
-|---------|:--------:|:----------:|:-------:|:---:|:----------:|:----------:|:-------:|:------------:|
-| DDN     |    ☒     |            |    ✓    |  ☒  |     ☒      |     ☒      |    ✓    |      ☒       |
-| ALMA    |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
-| FMN     |    ✓     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ✓    |      ☒       |
-| PGD     |    ☒     |            |    ✓    |  ✓  |            |     ✓      |         |      ✓       |
-| JSMA    |    ☒     |            |    ☒    |  ✓  |     ☒      |     ☒      |    ☒    |      ☒       |
-| CW-L2   |    ☒     |            |    ✓    |  ✓  |            |     ~      |    ✓    |      ✓       |
-| CW-LINF |    ☒     |     ☒      |    ✓    |  ✓  |     ☒      |     ☒      |    ☒    |      ☒       |
-| FGSM    |    ☒     |            |    ☒    |  ✓  |            |            |         |      ✓       |
-| BB      |    ☒     |     ☒      |    ☒    |  ✓  |     ☒      |     ☒      |    ✓    |      ☒       |
-| DF      |    ✓     |     ☒      |    ☒    |  ✓  |     ☒      |     ~      |    ✓    |      ✓       |
-| APGD    |    ✓     |     ☒      |    ✓    |  ✓  |     ☒      |     ☒      |    ☒    |      ✓       |
-| BIM     |    ☒     |            |    ☒    |  ✓  |            |     ☒      |         |      ☒       |
-| EAD     |    ☒     |            |    ☒    |  ✓  |     ☒      |     ☒      |    ✓    |      ☒       |
-| PDGD    |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
-| PDPGD   |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
-| TR      |    ✓     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
-| FAB     |    ✓     |            |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ✓       |
+| Attack       | Original | Advertorch | Adv_lib | ART | CleverHans | DeepRobust | Foolbox | Torchattacks |
+|--------------|:--------:|:----------:|:-------:|:---:|:----------:|:----------:|:-------:|:------------:|
+| DDN          |    ☒     |            |    ✓    |  ☒  |     ☒      |     ☒      |    ✓    |      ☒       |
+| ALMA         |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
+| FMN          |    ✓     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ✓    |      ☒       |
+| PGD          |    ☒     |            |    ✓    |  ✓  |            |     ✓      |         |      ✓       |
+| JSMA         |    ☒     |            |    ☒    |  ✓  |     ☒      |     ☒      |    ☒    |      ☒       |
+| CW-L2        |    ☒     |            |    ✓    |  ✓  |            |     ~      |    ✓    |      ✓       |
+| CW-LINF      |    ☒     |     ☒      |    ✓    |  ✓  |     ☒      |     ☒      |    ☒    |      ☒       |
+| FGSM         |    ☒     |            |    ☒    |  ✓  |            |            |         |      ✓       |
+| BB           |    ☒     |     ☒      |    ☒    |  ✓  |     ☒      |     ☒      |    ✓    |      ☒       |
+| DF           |    ✓     |     ☒      |    ☒    |  ✓  |     ☒      |     ~      |    ✓    |      ✓       |
+| SuperDF      |    ✓     |     ☒      |    ☒    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
+| APGD         |    ✓     |     ☒      |    ✓    |  ✓  |     ☒      |     ☒      |    ☒    |      ✓       |
+| BIM          |    ☒     |            |    ☒    |  ✓  |            |     ☒      |         |      ☒       |
+| EAD          |    ☒     |            |    ☒    |  ✓  |     ☒      |     ☒      |    ✓    |      ☒       |
+| PDGD         |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
+| PDPGD        |    ☒     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
+| TR           |    ✓     |     ☒      |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ☒       |
+| FAB          |    ✓     |            |    ✓    |  ☒  |     ☒      |     ☒      |    ☒    |      ✓       |
 
 
 Legend: 
@@ -127,6 +128,24 @@ print(f"ASR: {stats['asr']*100:.1f}%")
 ```
 
 Preconfigured attacks available out of the box: `pgd`, `fgsm`, `apgd`, `fab`, `fmn`, `deepfool`, `superdeepfool`, `trust_region`.
+
+### W&B Database Authentication
+
+AttackBench uses Weights & Biases to store and share precompiled attack distances. To use W&B features (caching, uploading, downloading results), you need to authenticate:
+
+```python
+# Option 1: Interactive login (recommended for local use)
+# Credentials are saved in ~/.netrc for future sessions
+import wandb
+wandb.login()
+
+# Option 2: API key via environment variable (recommended for Colab/notebooks)
+# Get your API key from: https://wandb.ai/authorize
+import os
+os.environ["WANDB_API_KEY"] = "your_api_key_here"
+```
+
+> **Note:** W&B authentication is only required for database features. All core functionality (running attacks, analysis) works without it.
 
 To use attacks from external libraries (requires `attackbench[attacks]`):
 

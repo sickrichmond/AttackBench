@@ -69,7 +69,7 @@ Adding New Models
 To add support for a new model:
 
 1. Add model loading code to ``attackbench/models/``
-2. Register it in ``MODEL_CONFIGS`` in ``attackbench/models/ingredient.py``
+2. Register it in ``MODEL_CONFIGS`` in ``attackbench/models/registry.py``
 3. Test the model with existing attacks
 
 Building Documentation

@@ -216,6 +216,29 @@ Comparing Multiple Attacks
 W&B Integration
 ---------------
 
+Authentication
+~~~~~~~~~~~~~~
+
+AttackBench uses Weights & Biases to store and share precompiled attack distances.
+To use W&B features, you need to authenticate first:
+
+.. code-block:: python
+
+   # Option 1: Interactive login (recommended for local use)
+   # Credentials are saved in ~/.netrc for future sessions
+   import wandb
+   wandb.login()
+
+   # Option 2: API key via environment variable (recommended for Colab/notebooks)
+   # Get your API key from: https://wandb.ai/authorize
+   import os
+   os.environ["WANDB_API_KEY"] = "your_api_key_here"
+
+.. note::
+
+   W&B authentication is only required for database features (uploading, downloading,
+   caching results). All core functionality works without it.
+
 Upload and Download Attack Results
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

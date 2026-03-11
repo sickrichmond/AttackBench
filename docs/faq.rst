@@ -232,6 +232,22 @@ Only if you want to:
 
 The core functionality (running attacks, analysis) works without W&B.
 
+How do I authenticate with W&B?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You need to authenticate before using any W&B features:
+
+.. code-block:: python
+
+   # Option 1: Interactive login (recommended for local use)
+   import wandb
+   wandb.login()
+
+   # Option 2: API key via environment variable (recommended for Colab/notebooks)
+   # Get your API key from: https://wandb.ai/authorize
+   import os
+   os.environ["WANDB_API_KEY"] = "your_api_key_here"
+
 How do I upload my results?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

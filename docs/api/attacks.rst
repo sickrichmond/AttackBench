@@ -14,7 +14,7 @@ Preconfigured Attacks
 Attack Loading
 --------------
 
-.. automodule:: attackbench.attacks.ingredient
+.. automodule:: attackbench.attacks.registry
    :members:
    :undoc-members:
    :show-inheritance:
