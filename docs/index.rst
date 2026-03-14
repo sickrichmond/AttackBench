@@ -42,10 +42,10 @@ Quick Install
 
 .. code-block:: bash
 
-   pip install attackbench
+   pip install attackbenchlib
 
    # With all optional dependencies
-   pip install "attackbench[all]"
+   pip install "attackbenchlib[all]"
 
 .. toctree::
    :maxdepth: 2

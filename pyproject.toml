@@ -3,8 +3,8 @@ requires = ["setuptools>=70.0.0", "wheel", "setuptools_scm[toml]>=6"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "attackbench"
-version = "1.0.0a9"
+name = "attackbenchlib"
+version = "1.0.1"
 description = "A Python package for benchmarking adversarial attacks and defenses."
 authors = [
     { name = "Antonio Cinà", email="antonio.cina@unige.it"},
@@ -33,7 +33,6 @@ dependencies = [
     "tqdm>=4.56.2",
     "wget>=3.2",
     "wandb>=0.15.0",
-    "setuptools>=65.0.0,<71",  # Required for pkg_resources (used by robustbench), <71 for Python 3.12 compatibility
 ]
 
 [project.optional-dependencies]

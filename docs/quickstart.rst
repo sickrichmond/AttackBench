@@ -59,10 +59,10 @@ AttackBench ships with preconfigured attacks that are ready to use out of the bo
        device=device
    )
 
-   # Analyze results (requires attackbench[metrics])
+   # Analyze results (requires attackbenchlib[metrics])
    stats = attackbench.get_stats(results, 'linf')
 
-   print(f"Attack Success Rate: {stats['asr']*100:.1f}%")
+   print(f"Attack Success Rate: {stats['ASR']*100:.1f}%")
    print(f"Model Accuracy: {stats['accuracy']*100:.1f}%")
 
 Available preconfigured attacks:
@@ -83,7 +83,7 @@ Available preconfigured attacks:
 Using Library Attacks
 ~~~~~~~~~~~~~~~~~~~~~
 
-To use attacks from external libraries (requires ``attackbench[attacks]``):
+To use attacks from external libraries (requires ``attackbenchlib[attacks]``):
 
 .. code-block:: python
 
@@ -151,7 +151,7 @@ Analyzing Results
 
 .. code-block:: python
 
-   # Basic statistics (requires attackbench[metrics])
+   # Basic statistics (requires attackbenchlib[metrics])
    stats = attackbench.get_stats(results, 'linf')
 
    # Compare multiple attacks

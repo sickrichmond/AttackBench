@@ -8,8 +8,8 @@ Usage:
     stats = attackbench.get_stats(results, 'linf')
 
 Optional subpackages:
-    - attacks: pip install attackbench[attacks]  (adversarial attack libraries)
-    - metrics: pip install attackbench[metrics]  (analysis & evaluation tools)
+    - attacks: pip install attackbenchlib[attacks]  (adversarial attack libraries)
+    - metrics: pip install attackbenchlib[metrics]  (analysis & evaluation tools)
     Both are optional and independent of each other.
 """
 
@@ -29,7 +29,18 @@ from .datasets.registry import get_loader
 # ── RobustBench integration ─────────────────────────────────────────────
 def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
     """Load a RobustBench model and attach AttackBench metadata for automatic extraction."""
-    from robustbench import load_model as _rb_load_model
+    try:
+        from robustbench import load_model as _rb_load_model
+    except ModuleNotFoundError as e:
+        if 'autoattack' in str(e):
+            raise ImportError(
+                "robustbench requires 'autoattack', which failed to install from PyPI.\n"
+                "Fix with: pip install git+https://github.com/fra31/auto-attack"
+            ) from e
+        raise ImportError(
+            "robustbench is required to load models. "
+            "Install it with: pip install attackbenchlib[models]"
+        ) from e
     model = _rb_load_model(model_name=model_name, dataset=dataset, threat_model=threat_model, **kwargs)
     model._attackbench_model = model_name
     model._attackbench_dataset = dataset
@@ -88,7 +99,7 @@ def __getattr__(name: str):
         except (ImportError, ModuleNotFoundError) as e:
             raise ImportError(
                 f"attackbench.{name} requires robustbench. "
-                f"Install it with: pip install attackbench[models]"
+                f"Install it with: pip install attackbenchlib[models]"
             ) from e
         globals()[name] = value
         return value
@@ -102,7 +113,7 @@ def __getattr__(name: str):
         except (ImportError, ModuleNotFoundError) as e:
             raise ImportError(
                 f"attackbench.{name} requires the 'attacks' subpackage. "
-                f"Install it with: pip install attackbench[attacks]"
+                f"Install it with: pip install attackbenchlib[attacks]"
             ) from e
         globals()[name] = value          # cache for subsequent accesses
         return value
@@ -116,7 +127,7 @@ def __getattr__(name: str):
         except (ImportError, ModuleNotFoundError) as e:
             raise ImportError(
                 f"attackbench.{name} requires the 'metrics' subpackage. "
-                f"Install it with: pip install attackbench[metrics]"
+                f"Install it with: pip install attackbenchlib[metrics]"
             ) from e
         globals()[name] = value
         return value

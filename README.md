@@ -64,36 +64,58 @@ Legend:
 ### Install from PyPI
 
 ```bash
-pip install attackbench
+pip install attackbenchlib
 ```
 
 ### Optional dependencies
 
 ```bash
-# Attack library wrappers (ART, Foolbox, Torchattacks, CleverHans, RobustBench)
-pip install "attackbench[attacks]"
+# Attack library wrappers (ART, Foolbox, Torchattacks, CleverHans)
+pip install "attackbenchlib[attacks]"
 
 # Model loading utilities (RobustBench, timm, transformers)
-pip install "attackbench[models]"
+pip install "attackbenchlib[models]"
 
 # Analysis and visualization tools (scikit-learn, seaborn, plotly)
-pip install "attackbench[metrics]"
+pip install "attackbenchlib[metrics]"
 
 # Everything (attacks + models + metrics)
-pip install "attackbench[all]"
+pip install "attackbenchlib[all]"
 ```
 
-> **Note:** `adv-lib` is not on PyPI. Install it manually if needed:
-> `pip install git+https://github.com/jeromerony/adversarial-library`
->
-> `deeprobust` requires `scipy<1.8.0` and only works on Python 3.9:
-> `pip install "attackbench[deeprobust]"`
+> **Note on `autoattack`:** RobustBench depends on `autoattack`. If you encounter import errors
+> related to autoattack after installing `attackbenchlib[models]`, install it manually from GitHub:
+> ```bash
+> pip install git+https://github.com/fra31/auto-attack
+> ```
+
+> **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not available on PyPI.
+> If you need adv-lib attacks, install it manually:
+> ```bash
+> pip install git+https://github.com/jeromerony/adversarial-library
+> ```
+
+> **Note on `deeprobust`:** Requires `scipy<1.8.0` and only works on Python 3.9:
+> `pip install "attackbenchlib[deeprobust]"`
+
+### Google Colab
+
+On Google Colab, install with all dependencies:
+
+```python
+!pip install "attackbenchlib[models,attacks]" -q
+!pip install git+https://github.com/fra31/auto-attack -q  # required for RobustBench
+```
+
+> You may see red dependency conflict warnings during installation. These are caused by
+> RobustBench's strict dependency pins (e.g., `timm==1.0.9`) conflicting with Colab's
+> pre-installed packages. They are harmless warnings — the library works correctly.
 
 ### Install from source (development)
 
 ```bash
-git clone https://github.com/attackbench/AttackBench.git
-cd AttackBench
+git clone https://github.com/attackbench/AttackBenchLib.git
+cd AttackBenchLib
 pip install -e ".[dev]"
 ```
 
@@ -107,8 +129,8 @@ from attackbench.attacks import apgd
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Load model and dataset
-model = attackbench.get_model('Standard')
+# Load model and dataset (requires attackbenchlib[models])
+model = attackbench.load_model('Standard', dataset='cifar10', threat_model='Linf')
 model.to(device)
 
 dataset = attackbench.get_loader(dataset='cifar10', batch_size=128, num_samples=1000)
@@ -122,14 +144,14 @@ results = attackbench.run_attack(
     device=device
 )
 
-# Analyze results (requires attackbench[metrics])
+# Analyze results (requires attackbenchlib[metrics])
 stats = attackbench.get_stats(results, 'linf')
-print(f"ASR: {stats['asr']*100:.1f}%")
+print(f"ASR: {stats['ASR']*100:.1f}%")
 ```
 
 Preconfigured attacks available out of the box: `pgd`, `fgsm`, `apgd`, `fab`, `fmn`, `deepfool`, `superdeepfool`, `trust_region`.
 
-To use attacks from external libraries (requires `attackbench[attacks]`):
+To use attacks from external libraries (requires `attackbenchlib[attacks]`):
 
 ```python
 # List available attacks

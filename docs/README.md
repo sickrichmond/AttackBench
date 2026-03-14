@@ -9,7 +9,7 @@ This directory contains the Sphinx documentation for AttackBench.
 Install the documentation dependencies:
 
 ```bash
-pip install "attackbench[docs]"
+pip install "attackbenchlib[docs]"
 ```
 
 Or install from the requirements file:

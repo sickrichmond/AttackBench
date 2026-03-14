@@ -58,16 +58,16 @@ AttackBench uses lazy imports. If you see an error like
 .. code-block:: bash
 
    # For analysis features
-   pip install "attackbench[metrics]"
+   pip install "attackbenchlib[metrics]"
 
    # For library attack wrappers
-   pip install "attackbench[attacks]"
+   pip install "attackbenchlib[attacks]"
 
    # For model loading
-   pip install "attackbench[models]"
+   pip install "attackbenchlib[models]"
 
    # Everything at once
-   pip install "attackbench[all]"
+   pip install "attackbenchlib[all]"
 
 How do I install adv-lib?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -85,7 +85,7 @@ How do I install deeprobust?
 
 .. code-block:: bash
 
-   pip install "attackbench[deeprobust]"
+   pip install "attackbenchlib[deeprobust]"
 
 Usage Questions
 ---------------
