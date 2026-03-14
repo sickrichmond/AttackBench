@@ -24,7 +24,7 @@ from .custom_components import create_custom_attack
 
 # ── Helpers to load objects (always available) ───────────────────────────
 from .datasets.registry import get_loader
-from .models.registry import get_model
+
 
 # ── RobustBench integration ─────────────────────────────────────────────
 def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
@@ -56,6 +56,10 @@ _LAZY_ATTACKS = {
     'bomn_attack':  ('attacks.bomn',       'bomn_attack'),
 }
 
+_LAZY_MODELS = {
+    'get_model':    ('models.registry',    'get_model'),
+}
+
 _LAZY_METRICS = {
     'get_stats':                   ('metrics.analysis',         'get_stats'),
     'eval_optimality':             ('metrics.distances',        'eval_optimality'),
@@ -75,6 +79,20 @@ _LAZY_METRICS = {
 
 
 def __getattr__(name: str):
+    # ── Models (requires robustbench) ───────────────────────────────────
+    if name in _LAZY_MODELS:
+        submodule, attr = _LAZY_MODELS[name]
+        try:
+            mod = importlib.import_module(f'.{submodule}', __name__)
+            value = getattr(mod, attr)
+        except (ImportError, ModuleNotFoundError) as e:
+            raise ImportError(
+                f"attackbench.{name} requires robustbench. "
+                f"Install it with: pip install attackbench[models]"
+            ) from e
+        globals()[name] = value
+        return value
+
     # ── Attacks (optional) ───────────────────────────────────────────────
     if name in _LAZY_ATTACKS:
         submodule, attr = _LAZY_ATTACKS[name]
@@ -109,6 +127,7 @@ def __getattr__(name: str):
 def __dir__():
     """Support tab-completion for lazy attributes."""
     public = list(globals().keys())
+    public.extend(_LAZY_MODELS.keys())
     public.extend(_LAZY_ATTACKS.keys())
     public.extend(_LAZY_METRICS.keys())
     return public

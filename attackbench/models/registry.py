@@ -3,7 +3,6 @@ from importlib import resources
 from typing import Dict, Any
 
 import torch
-from robustbench import load_model
 from torch import nn
 
 # from . import checkpoints
@@ -159,6 +158,13 @@ MODEL_CONFIGS.update({
 
 def get_robustbench_model(name: str, dataset: str, threat_model: str) -> nn.Module:
     """Get model from RobustBench"""
+    try:
+        from robustbench import load_model
+    except ImportError:
+        raise ImportError(
+            "robustbench is required to load RobustBench models. "
+            "Install it with: pip install attackbench[models]"
+        )
     model = load_model(model_name=name, dataset=dataset, threat_model=threat_model)
     return model
 
