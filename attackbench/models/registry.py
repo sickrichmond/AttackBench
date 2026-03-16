@@ -1,15 +1,24 @@
+import os
+import urllib.request
 from functools import partial
-from importlib import resources
 from typing import Dict, Any
 
 import torch
 from torch import nn
 
-# from . import checkpoints
 from .benchmodel_wrapper import BenchModel
 from .mnist import SmallCNN
 from .original.utils import load_original_model
 
+
+# Base URL for downloading MNIST checkpoints from GitHub Releases
+_CHECKPOINT_BASE_URL = 'https://github.com/attackbench/AttackBench/releases/download/checkpoints'
+
+_MNIST_CHECKPOINTS = {
+    'mnist_smallcnn_standard.pth': f'{_CHECKPOINT_BASE_URL}/mnist_smallcnn_standard.pth',
+    'mnist_smallcnn_robust_ddn.pth': f'{_CHECKPOINT_BASE_URL}/mnist_smallcnn_robust_ddn.pth',
+    'mnist_smallcnn_robust_trades.pth': f'{_CHECKPOINT_BASE_URL}/mnist_smallcnn_robust_trades.pth',
+}
 
 # Model configurations - maps model names to their parameters
 MODEL_CONFIGS = {
@@ -51,10 +60,17 @@ MODEL_CONFIGS = {
 
 
 def get_mnist_smallcnn(checkpoint: str) -> nn.Module:
-    """Load MNIST SmallCNN model with specified checkpoint"""
+    """Load MNIST SmallCNN model with specified checkpoint, downloading if needed."""
     model = SmallCNN()
-    with resources.path(checkpoints, checkpoint) as f:
-        state_dict = torch.load(f, map_location='cpu')
+    cache_dir = os.path.join('models', 'checkpoints')
+    os.makedirs(cache_dir, exist_ok=True)
+    model_file = os.path.join(cache_dir, checkpoint)
+    if not os.path.exists(model_file):
+        if checkpoint not in _MNIST_CHECKPOINTS:
+            raise ValueError(f"Unknown checkpoint: {checkpoint}. Available: {list(_MNIST_CHECKPOINTS.keys())}")
+        print(f'Downloading {checkpoint}...')
+        urllib.request.urlretrieve(_MNIST_CHECKPOINTS[checkpoint], model_file)
+    state_dict = torch.load(model_file, map_location='cpu', weights_only=True)
     model.load_state_dict(state_dict)
     return model
 
