@@ -12,7 +12,9 @@ from .ensemble import ensemble_distances
 def compute_global_optimality(
     attack_results_per_model: Dict[str, Dict[str, Any]],
     threat_model: str = 'linf',
-    reference_per_model: Optional[Dict[str, Union[Dict[str, Any], List[Dict[str, Any]]]]] = None
+    reference_per_model: Optional[Dict[str, Union[Dict[str, Any], List[Dict[str, Any]]]]] = None,
+    use_wandb: bool = True,
+    cache_dir: str = "./cache"
 ) -> Dict[str, Any]:
     """
     Compute global optimality for an attack across multiple models (Stage 4).
@@ -23,9 +25,12 @@ def compute_global_optimality(
     Args:
         attack_results_per_model: Dict mapping model_name -> attack_results from run_attack()
         threat_model: Threat model to analyze ('linf', 'l0', 'l1', 'l2')
-        reference_per_model: Optional dict mapping model_name -> reference results
-            - If None, will compute ensemble for each model from attack_results_per_model
-            - Can be single attack results dict or list of attack results per model
+        reference_per_model: Optional dict mapping model_name -> reference results.
+            Each value can be a single attack results dict or a list of attack results.
+            If a single dict is provided, it is automatically wrapped in a list.
+            If None, downloads optimal distances from W&B for each model.
+        use_wandb: If True and reference_per_model is None, download optimal distances
+        cache_dir: Local cache directory for W&B downloads
             
     Returns:
         Dictionary with:
@@ -57,16 +62,22 @@ def compute_global_optimality(
         # Determine reference for this model
         if reference_per_model is not None and model_name in reference_per_model:
             reference = reference_per_model[model_name]
+            # Wrap single dict in a list for compute_local_optimality compatibility
+            if isinstance(reference, dict):
+                reference = [reference]
         else:
-            # No reference provided, use self as reference (optimality = 1.0)
-            reference = attack_results
+            # No reference provided: let compute_local_optimality handle it
+            # (will download from W&B if use_wandb=True)
+            reference = None
         
         # Compute local optimality
         try:
             opt_result = compute_local_optimality(
                 attack_results=attack_results,
                 reference_results=reference,
-                threat_model=threat_model
+                threat_model=threat_model,
+                use_wandb=use_wandb,
+                cache_dir=cache_dir
             )
             local_optimalities[model_name] = opt_result['optimality']
         except Exception as e:
@@ -140,9 +151,11 @@ def create_attack_leaderboard(
     if len(attacks_results_per_model) == 0:
         raise ValueError("attacks_results_per_model is empty")
     
-    # Get model names (assume all attacks tested on same models)
-    first_attack = next(iter(attacks_results_per_model.values()))
-    model_names = list(first_attack.keys())
+    # Collect all model names across all attacks (union)
+    model_names_set = set()
+    for results_per_model in attacks_results_per_model.values():
+        model_names_set.update(results_per_model.keys())
+    model_names = sorted(model_names_set)
     
     if len(model_names) == 0:
         raise ValueError("No models found in results")
@@ -178,18 +191,19 @@ def create_attack_leaderboard(
         reference_per_model = {}
         for model_name in model_names:
             if model_name in results_per_model:
-                # Create a fake attack_results dict with ensemble distances
-                reference_per_model[model_name] = {
+                # Wrap ensemble distances as a single-element list of attack results
+                reference_per_model[model_name] = [{
                     'distances': {threat_model: ensemble_per_model[model_name].tolist()},
                     'adv_success': [1] * len(ensemble_per_model[model_name]),
                     'ori_success': [1] * len(ensemble_per_model[model_name])
-                }
+                }]
         
         try:
             global_opt = compute_global_optimality(
                 attack_results_per_model=results_per_model,
                 threat_model=threat_model,
-                reference_per_model=reference_per_model
+                reference_per_model=reference_per_model,
+                use_wandb=False
             )
             attack_global_optimalities[attack_name] = global_opt
         except Exception as e:
