@@ -12,7 +12,7 @@ from .original.utils import load_original_model
 
 
 # Base URL for downloading MNIST checkpoints from GitHub Releases
-_CHECKPOINT_BASE_URL = 'https://github.com/attackbench/AttackBench/releases/download/checkpoints'
+_CHECKPOINT_BASE_URL = 'https://github.com/sickrichmond/AttackBench/releases/download/checkpoints'
 
 _MNIST_CHECKPOINTS = {
     'mnist_smallcnn_standard.pth': f'{_CHECKPOINT_BASE_URL}/mnist_smallcnn_standard.pth',

@@ -72,6 +72,11 @@ To add support for a new model:
 2. Register it in ``MODEL_CONFIGS`` in ``attackbench/models/registry.py``
 3. Test the model with existing attacks
 
+.. note::
+
+   MNIST checkpoints are automatically downloaded from GitHub Releases on first use
+   and cached locally in ``models/checkpoints/``. No manual download is required.
+
 Building Documentation
 ----------------------
 

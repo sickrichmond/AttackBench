@@ -157,6 +157,9 @@ How do I load models?
    # Via RobustBench with auto-metadata
    model = attackbench.load_model('Standard', dataset='cifar10', threat_model='Linf')
 
+MNIST checkpoints are automatically downloaded from GitHub Releases on first use
+and cached in ``models/checkpoints/``.
+
 What does ``run_attack`` return?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -155,7 +155,7 @@ dmypy.json
 #experiments and test results
 /bomn_results/
 /results_envelope/
-/scripts/private_scripts/
+/scripts/
 
 # local configuration
 /compiled/

@@ -89,22 +89,30 @@ Computing Global Optimality
 
 .. code-block:: python
 
-   # Dictionary of {model_name: {attack_name: results}}
-   all_results = {
-       'Standard': {
-           'PGD': results_pgd_std,
-           'APGD': results_apgd_std,
-       },
-       'Carmon2019': {
-           'PGD': results_pgd_carmon,
-           'APGD': results_apgd_carmon,
-       }
-   }
+   # Dictionary mapping model_name -> attack results from run_attack()
+   results_per_model = {}
+   for model_name in ['Standard', 'Carmon2019Unlabeled', 'Wong2020Fast']:
+       model = attackbench.load_model(model_name, 'cifar10', 'Linf')
+       results = attackbench.run_attack(model, dataset, pgd, 'linf', device)
+       results_per_model[model_name] = results
 
    # Compute global optimality
+   # When no reference is provided, optimal distances are downloaded from W&B
    global_opt = attackbench.compute_global_optimality(
-       all_results,
+       results_per_model,
        threat_model='linf'
+   )
+
+   # You can also provide custom reference results per model
+   # (single dicts are automatically wrapped in lists)
+   global_opt = attackbench.compute_global_optimality(
+       results_per_model,
+       threat_model='linf',
+       reference_per_model={
+           'Standard': [results_apgd_std, results_fab_std],
+           'Carmon2019Unlabeled': results_apgd_carmon,  # single dict OK
+       },
+       use_wandb=False  # don't download from W&B
    )
 
    # Create and display leaderboard
