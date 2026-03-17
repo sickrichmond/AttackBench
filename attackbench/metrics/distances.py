@@ -72,10 +72,6 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     max_dist = np.amax(distances)
     best_area = _trapz(robust_acc, distances)
 
-    # Compute robust accuracy for attack distances (not used directly)
-    distances, counts = np.unique(adv_distances, return_counts=True)
-    robust_acc = 1 - counts.cumsum() / len(adv_distances)
-
     # Clip distances to max_dist for fair comparison
     distances_clipped, counts = np.unique(adv_distances.clip(min=None, max=max_dist), return_counts=True)
     robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
@@ -84,7 +80,12 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     area = _trapz(robust_acc_clipped, distances_clipped)
     
     # Calculate optimality (normalized AUC difference)
-    optimality = 1 - (area - best_area) / (clean_acc * max_dist - best_area)
+    denominator = clean_acc * max_dist - best_area
+    if denominator == 0:
+        # Degenerate case: reference has no meaningful spread
+        # (e.g., all distances are 0 or all equal)
+        return float('nan')
+    optimality = 1 - (area - best_area) / denominator
 
     return float(optimality)
 
