@@ -249,6 +249,7 @@ def run_attack(
                 'best_optim_distances': cached_data.get('best_optim_distances', {}),
                 'adv_success': cached_data.get('adv_success', []),
                 'ori_success': cached_data.get('ori_success', []),
+                'hashes': cached_data.get('hashes', []),
                 'metadata': {
                     'dataset': dataset_name,
                     'model_name': model_name,
@@ -356,6 +357,7 @@ def run_attack(
         'best_optim_distances': dict(best_optim_distances),
         'adv_success': adv_success,
         'ori_success': ori_success,
+        'hashes': hashes_list,  # Always included for sample identity tracking
         'metadata': {
             'dataset': dataset_name,
             'model_name': model_name,
@@ -375,7 +377,6 @@ def run_attack(
             'num_forwards': forwards,
             'num_backwards': backwards,
             'times': times,
-            'hashes': hashes_list,
             'box_failures': box_failures,
             'batch_failures': batch_failures,
             'targeted': targeted,

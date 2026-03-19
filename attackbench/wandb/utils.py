@@ -122,22 +122,25 @@ def get_precompiled_distances(dataset, threat_model, model_name, attack_name, at
         return None
 
 
-def get_optimal_distances(dataset, threat_model, model_name, n_samples, cache_dir="./data/cache"):
+def get_optimal_distances(dataset, threat_model, model_name, cache_dir="./data/cache"):
     """
-    Retrieves optimal distances (lower envelope). Checks local cache first, then downloads from W&B.
+    Retrieves optimal distances (lower envelope) as hash-based lookup table.
+    Checks local cache first, then downloads from W&B.
+    
+    Optimal distances are stored on the FULL dataset as {hash: distance} dicts,
+    allowing matching with any subset of samples via per-image SHA-512 hashes.
     
     Args:
         dataset: Dataset name (e.g., 'cifar10')
         threat_model: Threat model (e.g., 'linf', 'l2')
         model_name: Model name (e.g., 'Standard')
-        n_samples: Number of samples
         cache_dir: Local cache directory
         
     Returns:
-        Dictionary with optimal distances, or None if not found
+        Dictionary with optimal distances (hash-based), or None if not found
     """
-    # Artifact naming convention: dataset-threat_model-model-n_samples (all lowercase)
-    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
+    # Artifact naming: dataset-threat_model-model (no n_samples, always full dataset)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name)
     file_name = f"{artifact_name}.json"
     
     # Use separate cache folder for optimal distances

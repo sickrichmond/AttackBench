@@ -127,18 +127,17 @@ def compute_local_optimality(
         # Lazy import to avoid circular dependency
         from ..wandb.manager import download_optimal_distances
         
-        # Download optimal distances artifact
+        # Download optimal distances artifact (hash-based, full dataset)
         best_data = download_optimal_distances(
             dataset=dataset,
             threat_model=threat_model,
             model_name=model_name,
-            n_samples=n_samples,
             cache_dir=cache_dir
         )
         
         if best_data is None:
             raise ValueError(
-                f"Could not load optimal distances for {dataset}/{threat_model}/{model_name}/{n_samples}. "
+                f"Could not load optimal distances for {dataset}/{threat_model}/{model_name}. "
                 "This can happen if:\n"
                 "  1. W&B credentials are not configured (run 'wandb login' or set WANDB_API_KEY)\n"
                 "  2. The optimal distances artifact doesn't exist on W&B\n"
@@ -146,7 +145,41 @@ def compute_local_optimality(
                 "(list of attack results to use as reference)."
             )
         
-        reference_distances = np.array(best_data.get('distances', {}).get(threat_model, []))
+        optimal_distances_data = best_data.get('distances', {}).get(threat_model, {})
+        
+        if isinstance(optimal_distances_data, dict):
+            # Hash-based format: {hash: distance, ...}
+            # Match attack samples by hash
+            attack_hashes = attack_results.get('hashes', [])
+            if not attack_hashes:
+                raise ValueError(
+                    "attack_results does not contain 'hashes'. Hashes are required to match "
+                    "samples against hash-based optimal distances. Re-run the attack with "
+                    "a recent version of AttackBench that always includes hashes."
+                )
+            
+            reference_distances_list = []
+            missing_hashes = []
+            for h in attack_hashes:
+                if h in optimal_distances_data:
+                    reference_distances_list.append(optimal_distances_data[h])
+                else:
+                    missing_hashes.append(h)
+            
+            if missing_hashes:
+                raise ValueError(
+                    f"{len(missing_hashes)}/{len(attack_hashes)} attack sample hashes not found "
+                    f"in optimal distances. The optimal distances may have been computed on a "
+                    f"different dataset or dataset version. First missing hash: {missing_hashes[0][:16]}..."
+                )
+            
+            reference_distances = np.array(reference_distances_list)
+        elif isinstance(optimal_distances_data, list):
+            # Legacy positional format: [distance, distance, ...]
+            reference_distances = np.array(optimal_distances_data)
+        else:
+            raise ValueError(f"Unexpected optimal distances format for threat model '{threat_model}'")
+        
         if len(reference_distances) == 0:
             raise ValueError(f"Downloaded data does not contain distances for threat model '{threat_model}'")
         
@@ -162,7 +195,8 @@ def compute_local_optimality(
         raise ValueError("Reference distances are empty")
     if len(reference_distances) != n_samples:
         raise ValueError(f"Length mismatch: attack has {n_samples} samples, "
-                       f"reference has {len(reference_distances)} samples")
+                       f"reference has {len(reference_distances)} samples. "
+                       f"Ensure the reference was computed on compatible samples.")
     
     # Compute optimality using core function
     optimality = _eval_optimality_core(attack_distances, reference_distances)

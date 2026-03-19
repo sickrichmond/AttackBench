@@ -56,16 +56,22 @@ def get_dataset(dataset: str, root: str = 'data', num_samples: Optional[int] = N
 
 
 def get_loader(dataset: str, batch_size: int = 128, num_samples: Optional[int] = None,
-               random_subset: bool = True, root: str = 'data') -> DataLoader:
-    """Get data loader for specified dataset"""
+               random_subset: bool = True, seed: int = 0, root: str = 'data') -> DataLoader:
+    """Get data loader for specified dataset.
+    
+    When random_subset=True and num_samples is specified, a deterministic random
+    subset is selected using the given seed. This ensures the same (dataset, num_samples, seed)
+    always returns the same samples, which is critical for reproducible benchmarking.
+    """
     data = get_dataset(dataset=dataset, root=root, num_samples=num_samples)
 
     if num_samples is not None and num_samples < len(data):
         if not random_subset:
             data = Subset(data, indices=list(range(num_samples)))
         else:
-            indices = np.random.choice(len(data), replace=False, size=num_samples)
-            data = Subset(data, indices=indices)
+            rng = np.random.default_rng(seed=seed)
+            indices = rng.choice(len(data), replace=False, size=num_samples)
+            data = Subset(data, indices=indices.tolist())
     
     loader = DataLoader(dataset=data, batch_size=batch_size)
     

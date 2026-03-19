@@ -328,11 +328,17 @@ def upload_optimal_distances(
     dataset: str = None,
     threat_model: str = None,
     model_name: str = None,
-    n_samples: int = None,
     overwrite: bool = False
 ) -> bool:
     """
     Upload optimal distances (lower envelope) to W&B.
+    
+    Optimal distances are stored as hash-based lookup tables computed on the
+    FULL dataset. This allows matching with any subset of samples via their
+    per-image SHA-512 hashes.
+    
+    Data format:
+        distances: {threat_model: {image_hash: distance, ...}}
     
     Two usage modes:
     1. Pass file_path directly (file already exists)
@@ -340,26 +346,20 @@ def upload_optimal_distances(
     
     Args:
         file_path: Path to JSON file (optional if optimal_data provided)
-        optimal_data: Dictionary with optimal distances (optional if file_path provided)
+        optimal_data: Dictionary with optimal distances (optional if file_path provided).
+            Must contain 'distances' as {threat_model: {hash: distance}} dict.
         dataset: Dataset name (e.g., 'cifar10')
         threat_model: Threat model (e.g., 'linf', 'l2')
         model_name: Model name (e.g., 'Standard')
-        n_samples: Number of samples (will be inferred from data if not provided)
         overwrite: Whether to overwrite existing artifacts
         
     Returns:
         True if upload successful, False otherwise
         
     Example:
-        >>> # Upload from file
-        >>> upload_optimal_distances('./optimal/cifar10-linf-Standard-1000.json')
-        
-        >>> # Upload from data
         >>> upload_optimal_distances(
-        ...     optimal_data={'distances': {'linf': [0.1, 0.2, ...]}, ...},
-        ...     dataset='cifar10',
-        ...     threat_model='linf', 
-        ...     model_name='Standard'
+        ...     optimal_data={'distances': {'linf': {'abc123...': 0.1, 'def456...': 0.2}}},
+        ...     dataset='cifar10', threat_model='linf', model_name='Standard'
         ... )
     """
     
@@ -369,10 +369,14 @@ def upload_optimal_distances(
             print("Error: Must provide dataset, threat_model, model_name with optimal_data")
             return False
         
-        # Infer n_samples from data
-        if n_samples is None:
-            distances = optimal_data.get('distances', {}).get(threat_model, [])
-            n_samples = len(distances) if distances else 0
+        # Infer n_samples from data (hash-based dict)
+        distances = optimal_data.get('distances', {}).get(threat_model, {})
+        if isinstance(distances, dict):
+            n_samples = len(distances)
+        elif isinstance(distances, list):
+            n_samples = len(distances)
+        else:
+            n_samples = 0
         
         if n_samples == 0:
             print("Error: Could not determine n_samples from optimal_data")
@@ -382,7 +386,8 @@ def upload_optimal_distances(
         output_dir = Path('./temp_upload/optimal')
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
+        # Artifact name no longer includes n_samples (always full dataset)
+        artifact_name = _make_artifact_name(dataset, threat_model, model_name)
         file_path = output_dir / f"{artifact_name}.json"
         
         # Add metadata to data
@@ -393,7 +398,8 @@ def upload_optimal_distances(
                 'threat_model': threat_model,
                 'model_name': model_name,
                 'n_samples': n_samples,
-                'type': 'optimal_distances'
+                'type': 'optimal_distances',
+                'format': 'hash_based'
             }
         }
         
@@ -411,7 +417,7 @@ def upload_optimal_distances(
             print(f"Error: File not found: {file_path}")
             return False
         
-        # Extract metadata from file or filename
+        # Extract metadata from file
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
@@ -419,29 +425,19 @@ def upload_optimal_distances(
             dataset = metadata.get('dataset') or dataset
             threat_model = metadata.get('threat_model') or threat_model
             model_name = metadata.get('model_name') or model_name
-            n_samples = metadata.get('n_samples') or n_samples
-            
-            # Fallback: parse from filename
-            if not all([dataset, threat_model, model_name, n_samples]):
-                parts = file_path.stem.split('-')
-                if len(parts) >= 4:
-                    dataset = dataset or parts[0]
-                    threat_model = threat_model or parts[1]
-                    model_name = model_name or '-'.join(parts[2:-1])
-                    n_samples = n_samples or int(parts[-1])
         except Exception as e:
             print(f"Error: Could not extract metadata from file: {e}")
             return False
     
-    if not all([dataset, threat_model, model_name, n_samples]):
-        print("Error: Missing required metadata (dataset, threat_model, model_name, n_samples)")
+    if not all([dataset, threat_model, model_name]):
+        print("Error: Missing required metadata (dataset, threat_model, model_name)")
         return False
     
     # Verify authentication before attempting upload
     _get_wandb_api(require_auth=True)
     
-    # Create artifact name (all lowercase)
-    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
+    # Artifact name without n_samples (always full dataset)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name)
     
     print(f"Uploading optimal distances to W&B: {artifact_name}")
     print(f"   File: {file_path}")
@@ -463,13 +459,13 @@ def upload_optimal_distances(
             artifact = wandb.Artifact(
                 name=artifact_name,
                 type="optimal_distances",
-                description=f"Optimal distances (lower envelope) for {model_name} ({dataset}, {threat_model})",
+                description=f"Optimal distances (lower envelope) for {model_name} ({dataset}, {threat_model}) - hash-based, full dataset",
                 metadata={
                     "dataset": dataset,
                     "model": model_name,
                     "threat_model": threat_model,
-                    "n_samples": n_samples,
                     "type": "optimal_distances",
+                    "format": "hash_based",
                     "file_size": Path(file_path).stat().st_size
                 }
             )
@@ -488,29 +484,33 @@ def download_optimal_distances(
     dataset: str,
     threat_model: str,
     model_name: str,
-    n_samples: int,
     cache_dir: str = "./cache",
     force_download: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
     Download optimal distances (lower envelope) from W&B.
     
+    Optimal distances are stored as hash-based lookup tables:
+        distances: {threat_model: {image_hash: distance, ...}}
+    
+    This allows matching with any subset of samples via per-image SHA-512 hashes.
+    
     Args:
         dataset: Dataset name (e.g., 'cifar10')
         threat_model: Threat model (e.g., 'linf', 'l2')
         model_name: Model name (e.g., 'Standard')
-        n_samples: Number of samples
         cache_dir: Local cache directory
         force_download: Force re-download even if cached
         
     Returns:
-        Dictionary with optimal distances, or None if not found
+        Dictionary with optimal distances (hash-based), or None if not found
         
     Example:
-        >>> optimal = download_optimal_distances('cifar10', 'linf', 'Standard', 1000)
-        >>> distances = optimal['distances']['linf']
+        >>> optimal = download_optimal_distances('cifar10', 'linf', 'Standard')
+        >>> hash_to_dist = optimal['distances']['linf']  # {hash: distance, ...}
     """
-    artifact_name = _make_artifact_name(dataset, threat_model, model_name, n_samples)
+    # Artifact name without n_samples (always full dataset)
+    artifact_name = _make_artifact_name(dataset, threat_model, model_name)
     file_name = f"{artifact_name}.json"
     
     # Use separate cache folder for optimal distances

@@ -1,6 +1,6 @@
 # **AttackBench**: Evaluating Gradient-based Attacks for Adversarial Examples
 
-Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed, Fabio Roli, and Riccardo Trebiani
+Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed and Fabio Roli
 
 **Leaderboard**: [https://attackbench.github.io/](https://attackbench.github.io/)
 
