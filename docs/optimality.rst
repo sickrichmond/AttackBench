@@ -42,6 +42,17 @@ where:
 Computing Local Optimality
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Local optimality can be computed in two ways:
+
+1. **From multiple attack results** (relative comparison):
+   The best distance per sample is determined element-wise across all provided results.
+
+2. **From precomputed optimal distances** (absolute comparison):
+   Optimal distances stored on W&B (hash-based lookup tables computed over the
+   full dataset with all available attacks) are matched to each sample by its
+   SHA-512 hash. This is the recommended approach as it gives a stable reference
+   independent of which attacks or subset are used.
+
 .. code-block:: python
 
    import attackbench
@@ -66,6 +77,26 @@ Computing Local Optimality
    for attack_name, opt_values in optimality.items():
        mean_opt = sum(opt_values) / len(opt_values)
        print(f"{attack_name}: {mean_opt:.3f}")
+
+When ``optimal_distances`` (a hash-based dict ``{sha512_hash: distance}``) are
+provided, the function matches each sample via its hash rather than relying on
+positional alignment. This means you can evaluate any subset of the dataset and
+still get correct optimality values:
+
+.. code-block:: python
+
+   # Download hash-based optimal distances from W&B
+   optimal = attackbench.download_optimal_distances(
+       dataset='cifar10',
+       threat_model='linf',
+       model_name='Standard'
+   )
+
+   optimality = attackbench.compute_local_optimality(
+       attack_results={'APGD': results_apgd},
+       threat_model='linf',
+       optimal_distances=optimal   # hash-based lookup
+   )
 
 Global Optimality
 -----------------

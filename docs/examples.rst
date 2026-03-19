@@ -29,7 +29,8 @@ any external attack library:
    dataset = attackbench.get_loader(
        dataset='cifar10',
        batch_size=128,
-       num_samples=1000
+       num_samples=1000,
+       seed=0          # deterministic subset selection
    )
 
    # Run an attack
@@ -265,6 +266,31 @@ Upload and Download Attack Results
    # List all available distances on W&B
    available = attackbench.list_available_distances()
 
+Optimal Distances
+~~~~~~~~~~~~~~~~~
+
+Hash-based optimal distances (best-known perturbations for every image in the
+full dataset) can be uploaded and downloaded via W&B. They are stored as
+``{sha512_hash: distance}`` dictionaries, so any subset of the dataset can be
+matched regardless of ordering or size.
+
+.. code-block:: python
+
+   # Download optimal distances for a given configuration
+   optimal = attackbench.download_optimal_distances(
+       dataset='cifar10',
+       threat_model='linf',
+       model_name='Standard'
+   )
+
+   # Upload optimal distances after computing them
+   attackbench.upload_optimal_distances(
+       optimal_distances=optimal,
+       dataset='cifar10',
+       threat_model='linf',
+       model_name='Standard'
+   )
+
 W&B Caching
 ~~~~~~~~~~~~
 
@@ -341,7 +367,9 @@ By default, ``run_attack()`` returns minimal data. Request additional metadata:
    # - original_predictions, adversarial_predictions
    # - num_forwards, num_backwards (query counts)
    # - times (execution time per sample)
-   # - hashes (sample identifiers)
+
+   # Note: 'hashes' (SHA-512 per image) are ALWAYS included in results,
+   # even without include_metadata=True, to support hash-based optimality.
 
 Multi-Model Evaluation
 ----------------------

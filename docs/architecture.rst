@@ -52,6 +52,7 @@ Package Structure
    │   ├── global_optimality.py # Global optimality and leaderboard
    │   └── storage.py           # Results storage utilities
    └── wandb/                   # W&B integration for results sharing
+                                   # (precompiled & optimal distances)
 
 Core Modules
 ------------
@@ -82,6 +83,7 @@ PEP 562 lazy imports to keep the base installation lightweight:
 
 - **W&B integration** (always available, requires wandb):
   - ``upload_precompiled_distances()``, ``download_precompiled_distances()``
+  - ``upload_optimal_distances()``, ``download_optimal_distances()``
   - ``list_available_distances()``
 
 run.py
@@ -96,8 +98,10 @@ Contains the core ``run_attack()`` function. Key features:
   query tracking and constraint enforcement.
 - **W&B caching**: If ``use_cached=True`` (default), checks W&B for existing
   precompiled distances before running the attack.
-- **Minimal output**: Returns only essential data (distances, success flags).
-  Use ``get_stats()`` for analysis.
+- **SHA-512 hashing**: Computes a per-image hash on raw RGB values so that
+  each sample is uniquely identifiable regardless of subset ordering.
+- **Minimal output**: Returns only essential data (distances, success flags,
+  hashes). Use ``get_stats()`` for analysis.
 
 custom_components.py
 ~~~~~~~~~~~~~~~~~~~~
@@ -165,6 +169,8 @@ The ``run_attack()`` function returns a dictionary with minimal raw data:
 - ``best_optim_distances``: Optimal distances tracked by ``BenchModel`` during the attack
 - ``adv_success``: Boolean list indicating successful adversarial examples
 - ``ori_success``: Boolean list indicating originally correct predictions
+- ``hashes``: SHA-512 hashes of each input image (computed on raw RGB values).
+  Always included to enable hash-based matching with optimal distances.
 
 **Optional metadata** (when ``include_metadata=True``):
 
@@ -173,7 +179,6 @@ The ``run_attack()`` function returns a dictionary with minimal raw data:
 - ``num_forwards``: Forward pass count per sample
 - ``num_backwards``: Backward pass count per sample
 - ``times``: Execution time per sample
-- ``hashes``: Sample identifiers
 
 **Optional tensors** (when ``save_adversarial=True``):
 

@@ -20,11 +20,12 @@ First, import the required modules and set up your environment:
    model = attackbench.get_model('Standard')
    model.to(device)
 
-   # Load dataset
+   # Load dataset (deterministic: same seed returns the same subset)
    dataset = attackbench.get_loader(
        dataset='cifar10',
        batch_size=128,
-       num_samples=1000
+       num_samples=1000,
+       seed=0          # default; change for a different subset
    )
 
 You can also load models directly from RobustBench:

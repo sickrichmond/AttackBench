@@ -169,6 +169,7 @@ By default, ``run_attack`` returns minimal data:
 - ``best_optim_distances``: Best distances tracked during the attack
 - ``adv_success``: Boolean list of successful attacks
 - ``ori_success``: Boolean list of originally correct predictions
+- ``hashes``: SHA-512 hash of each input image (always included)
 
 Use ``include_metadata=True`` for additional data (queries, times, predictions).
 Use ``save_adversarial=True`` to include adversarial tensors.
@@ -218,6 +219,11 @@ Local optimality compares attacks per sample:
 .. math::
 
    \text{Optimality} = \frac{\text{best distance among all attacks}}{\text{this attack's distance}}
+
+Optimal distances are stored on W&B as **hash-based lookup tables**
+(``{sha512_hash: distance}``), computed over the full dataset using all
+available attacks. When evaluating a subset, each sample is matched by its
+hash, ensuring correct optimality values regardless of subset size or ordering.
 
 See :doc:`optimality` for details.
 
@@ -269,6 +275,22 @@ Can I use AttackBench offline?
 
 Yes. Set ``use_cached=False`` in ``run_attack()`` to skip W&B checks.
 All core functionality works locally.
+
+Is dataset sampling deterministic?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. ``get_loader()`` uses a deterministic seed (``seed=0`` by default) for
+subset selection. The same ``(dataset, num_samples, seed)`` combination always
+returns the same samples. Pass a different ``seed`` value to obtain a different
+subset.
+
+What are sample hashes?
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``run_attack()`` always computes a SHA-512 hash of each input image's raw RGB
+values. These hashes uniquely identify samples independently of their position
+in the dataset or the subset used. They are used to match results against
+hash-based optimal distances stored on W&B.
 
 Contributing
 ------------
