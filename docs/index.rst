@@ -1,15 +1,15 @@
-Welcome to AttackBench's documentation!
-========================================
+Welcome to AttackBenchLib's documentation!
+==========================================
 
-**AttackBench** is a Python framework for evaluating gradient-based adversarial attacks.
-It provides a systematic and reproducible protocol for comparing different attack implementations
-based on their security evaluation curves and local optimality metrics.
+**AttackBenchLib** is a Python library that implements the framework described in the
+**AttackBench** paper in a modular, user-friendly way, making multiple workflows and
+kinds of analysis possible through a single library.
 
 **Leaderboard**: https://attackbench.github.io/
 
 **Paper**: https://arxiv.org/pdf/2404.19460
 
-**PyPI**: https://pypi.org/project/attackbench/
+**PyPI**: https://pypi.org/project/attackbenchlib/
 
 **Tutorial Notebook**: `Open in Google Colab <https://colab.research.google.com/drive/1rzzLRjMovcns25qOeEXt15R3L2Md_Pst?usp=sharing>`_
 
@@ -63,7 +63,7 @@ Quick Install
 Citation
 --------
 
-If you use AttackBench in your research, please cite:
+If you use AttackBenchLib in your research, please cite:
 
 .. code-block:: bibtex
 
@@ -83,7 +83,7 @@ If you use AttackBench in your research, please cite:
 Acknowledgements
 ----------------
 
-AttackBench has been partially developed with the support of:
+AttackBenchLib has been partially developed with the support of:
 
 - European Union's **ELSA -- European Lighthouse on Secure and Safe AI**, Horizon Europe, grant agreement No. 101070617
 - **Sec4AI4Sec - Cybersecurity for AI-Augmented Systems**, Horizon Europe, grant agreement No. 101120393

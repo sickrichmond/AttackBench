@@ -1,7 +1,7 @@
 Contributing
 ============
 
-We welcome contributions to AttackBench!
+We welcome contributions to AttackBenchLib!
 
 How to Contribute
 -----------------
@@ -21,8 +21,8 @@ Clone and install in development mode:
 
 .. code-block:: bash
 
-   git clone https://github.com/attackbench/AttackBench.git
-   cd AttackBench
+   git clone https://github.com/attackbench/AttackBenchLib.git
+   cd AttackBenchLib
    pip install -e ".[dev]"
 
 Code Style
@@ -91,7 +91,7 @@ The built documentation will be available in ``docs/_build/html/``.
 Reporting Issues
 ----------------
 
-Please report issues on GitHub: https://github.com/attackbench/AttackBench/issues
+Please report issues on GitHub: https://github.com/attackbench/AttackBenchLib/issues
 
 Contact
 -------

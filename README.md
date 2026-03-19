@@ -1,4 +1,4 @@
-# **AttackBench**: Evaluating Gradient-based Attacks for Adversarial Examples
+# **AttackBenchLib**: Evaluating Gradient-based Attacks for Adversarial Examples
 
 Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed and Fabio Roli
 
@@ -7,10 +7,9 @@ Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Dem
 **Paper:** [https://arxiv.org/pdf/2404.19460](https://arxiv.org/pdf/2404.19460)
 
 **Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1rzzLRjMovcns25qOeEXt15R3L2Md_Pst?usp=sharing)
-
 ## How it works
-
-The <code>AttackBench</code> framework wants to fairly compare gradient-based attacks based on their security evaluation curves. To this end, we derive a process involving five distinct stages, as depicted below.
+AttackBenchLib is a library that implements the framework described in the AttackBench paper in a new modular, user-friendly way in order to make multiple workflows and kinds of analysis possible through the use of a single library. 
+The <code>AttackBench</code> framework aims to fairly compare gradient-based attacks based on their security evaluation curves. To this end, we derive a process involving five distinct stages, as depicted below.
   - In stage (1), we construct a list of diverse non-robust and robust models to assess the attacks' impact on various settings, thus testing their adaptability to diverse defensive strategies. 
   - In stage (2), we define an environment for testing gradient-based attacks under a systematic and reproducible protocol. 
         This step provides common ground with shared assumptions, advantages, and limitations. 
@@ -166,7 +165,7 @@ results = attackbench.run_attack(model=model, dataset=dataset, attack=art_pgd, t
 
 ## Attack format
 
-Tthe wrappers for all the implementations (including libraries) must have the following format:
+The wrappers for all the implementations (including libraries) must have the following format:
 
 - inputs:
     - `model`: `nn.Module` taking inputs in the [0, 1] range and returning logits in $\mathbb{R}^K$

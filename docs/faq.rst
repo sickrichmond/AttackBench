@@ -1,19 +1,20 @@
 FAQ
 ===
 
-Frequently Asked Questions about AttackBench.
+Frequently Asked Questions about AttackBenchLib.
 
 General Questions
 -----------------
 
-What is AttackBench?
-~~~~~~~~~~~~~~~~~~~~
+What is AttackBenchLib?
+~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench is a framework for fairly evaluating and comparing gradient-based adversarial attacks.
+AttackBenchLib is a Python library that implements the **AttackBench** framework for
+fairly evaluating and comparing gradient-based adversarial attacks.
 It provides standardized implementations, optimality metrics, and benchmarking tools.
 
-Why use AttackBench?
-~~~~~~~~~~~~~~~~~~~~
+Why use AttackBenchLib?
+~~~~~~~~~~~~~~~~~~~~~~
 
 - **Fair Comparison**: All attacks run in the same environment with consistent settings
 - **Optimality Metrics**: Beyond ASR, measure how close attacks are to optimal perturbations
@@ -24,7 +25,7 @@ Why use AttackBench?
 How is this different from existing benchmarks?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench focuses on:
+AttackBenchLib focuses on:
 
 1. **Local Optimality**: Comparing attacks on individual samples
 2. **Global Optimality**: Ranking attacks across multiple models
@@ -37,7 +38,7 @@ Installation Issues
 What Python and PyTorch versions are supported?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench supports:
+AttackBenchLib supports:
 
 - Python >= 3.9, < 3.13
 - PyTorch >= 2.4
@@ -47,12 +48,12 @@ Install the base package:
 
 .. code-block:: bash
 
-   pip install attackbench
+   pip install attackbenchlib
 
 ImportError for optional features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench uses lazy imports. If you see an error like
+AttackBenchLib uses lazy imports. If you see an error like
 ``attackbench.get_stats requires the 'metrics' subpackage``, install the required extra:
 
 .. code-block:: bash
@@ -151,7 +152,7 @@ How do I load models?
 
 .. code-block:: python
 
-   # Via AttackBench's model registry
+   # Via AttackBenchLib's model registry
    model = attackbench.get_model('Standard')
 
    # Via RobustBench with auto-metadata
@@ -270,7 +271,7 @@ How do I upload my results?
        attack_name='my_attack'
    )
 
-Can I use AttackBench offline?
+Can I use AttackBenchLib offline?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Yes. Set ``use_cached=False`` in ``run_attack()`` to skip W&B checks.
@@ -308,12 +309,12 @@ See :doc:`contributing` for details.
 Where do I report bugs?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Open an issue on GitHub: https://github.com/attackbench/AttackBench/issues
+Open an issue on GitHub: https://github.com/attackbench/AttackBenchLib/issues
 
 Citation
 --------
 
-How do I cite AttackBench?
+How do I cite AttackBenchLib?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bibtex

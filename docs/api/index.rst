@@ -1,7 +1,7 @@
 API Reference
 =============
 
-This section contains the API documentation for AttackBench.
+This section contains the API documentation for AttackBenchLib.
 
 .. toctree::
    :maxdepth: 2

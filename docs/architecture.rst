@@ -1,7 +1,7 @@
 Architecture
 ============
 
-AttackBench is organized into several key modules that work together to provide a comprehensive
+AttackBenchLib is organized into several key modules that work together to provide a comprehensive
 adversarial attack benchmarking framework.
 
 Overview
@@ -30,7 +30,7 @@ Package Structure
    ├── attacks/                 # Attack wrappers and registry system
    │   ├── registry.py          # get_attack(), list_attacks() - dynamic attack loading
    │   ├── bomn.py              # Best-of-MinNorm composite attack
-   │   ├── original/            # Native AttackBench implementations
+   │   ├── original/            # Native AttackBenchLib implementations
    │   ├── art/                 # IBM ART library wrappers
    │   ├── foolbox/             # Foolbox library wrappers
    │   ├── torchattacks/        # Torchattacks library wrappers

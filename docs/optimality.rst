@@ -1,13 +1,13 @@
 Optimality Metrics
 ==================
 
-AttackBench introduces local and global optimality metrics for comparing adversarial attacks.
+AttackBenchLib introduces local and global optimality metrics for comparing adversarial attacks.
 
 Overview
 --------
 
 Traditional metrics like Attack Success Rate (ASR) don't capture how optimal the generated
-adversarial examples are. AttackBench addresses this by:
+adversarial examples are. AttackBenchLib addresses this by:
 
 1. **Local Optimality**: Comparing attacks on individual model-sample pairs
 2. **Global Optimality**: Aggregating optimality across models and samples

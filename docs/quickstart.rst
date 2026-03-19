@@ -1,7 +1,7 @@
 Quick Start
 ===========
 
-This guide will help you get started with AttackBench.
+This guide will help you get started with AttackBenchLib.
 
 Basic Setup
 -----------
@@ -45,7 +45,7 @@ Running a Simple Attack
 Using Preconfigured Attacks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBench ships with preconfigured attacks that are ready to use out of the box:
+AttackBenchLib ships with preconfigured attacks that are ready to use out of the box:
 
 .. code-block:: python
 
@@ -115,7 +115,7 @@ To use attacks from external libraries (requires ``attackbenchlib[attacks]``):
 Creating a Custom Attack
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can wrap your own attack function for use with AttackBench:
+You can wrap your own attack function for use with AttackBenchLib:
 
 .. code-block:: python
 
@@ -167,7 +167,7 @@ Analyzing Results
 Using the Command Line
 ----------------------
 
-AttackBench provides a CLI entry point for running attacks:
+AttackBenchLib provides a CLI entry point for running attacks:
 
 .. code-block:: bash
 

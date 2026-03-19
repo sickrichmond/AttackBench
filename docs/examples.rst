@@ -1,7 +1,7 @@
 Examples
 ========
 
-This section provides practical examples of using AttackBench.
+This section provides practical examples of using AttackBenchLib.
 
 .. tip::
 
@@ -11,7 +11,7 @@ This section provides practical examples of using AttackBench.
 Running Preconfigured Attacks
 -----------------------------
 
-AttackBench includes ready-to-use attack implementations that do not require
+AttackBenchLib includes ready-to-use attack implementations that do not require
 any external attack library:
 
 .. code-block:: python
