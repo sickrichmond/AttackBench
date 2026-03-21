@@ -10,7 +10,7 @@ from .distances import (compute_distance_statistics, eval_optimality,
 from .curves import (compute_robust_accuracy_curve, compute_auc_robust_accuracy, 
                     compute_certified_robustness_metrics)
 from .ensemble import analyze_attack_ensemble
-from .storage import load_best_distances_with_wandb
+from .optimality import compute_local_optimality
 
 def get_stats(
     attack_results: Dict[str, Any], 
@@ -40,10 +40,14 @@ def get_stats(
     This is the main entry point for attack analysis. It computes:
     - Basic metrics (ASR, accuracy) 
     - Distance statistics (mean, median, std, etc.)
-    - Optimality scores (if best_distances available)
+    - Optimality scores (via compute_local_optimality with hash-based matching)
     - Robust accuracy curves
     - Certified robustness metrics
     - Query efficiency metrics
+    
+    Optimality is delegated to ``compute_local_optimality()``, which uses
+    hash-based sample matching when downloading optimal distances from W&B.
+    This ensures consistent results regardless of sample ordering or subset.
     
     Args:
         attack_results: Raw results from run_attack()
@@ -52,15 +56,20 @@ def get_stats(
         include_curves: Compute robust accuracy curves  
         include_certified: Compute certified robustness
         include_efficiency: Compute query efficiency
-        best_distances: Best known distances for optimality
-        auto_load_best: Try to auto-load best distances from W&B
+        best_distances: Explicit best known distances for optimality.
+            If provided, used directly as reference (positional matching).
+            If None and auto_load_best=True, optimal distances are downloaded
+            from W&B using hash-based matching.
+        auto_load_best: Try to auto-load optimal distances from W&B
         model_name: Model name for W&B lookup
-        batch_size: Batch size for W&B lookup
-        cache_dir: Cache directory for downloads
+        batch_size: Deprecated, no longer used. Kept for backward compatibility.
+        cache_dir: Cache directory for W&B downloads
         certified_thresholds: Custom thresholds for certified robustness
         save_precompiled: Save precompiled distances
         output_dir: Output directory for saved files
         attack_name: Attack name for metadata
+        **kwargs: Additional keyword arguments. Supports:
+            - dataset (str): Dataset name for W&B lookup (if not in metadata)
         
     Returns:
         Dictionary with comprehensive analysis results
@@ -92,42 +101,38 @@ def get_stats(
     
     # 2. OPTIONAL: Optimality computation
     if include_optimality:
-        # Try to get best distances from multiple sources
-        current_best = best_distances
-        
-        # First, check if best distances are in attack_results
-        if not current_best:
-            best_optim = attack_results.get('best_optim_distances', {})
-            if threat_model in best_optim and best_optim[threat_model]:
-                current_best = best_optim[threat_model]
-        
-        # Auto-load from W&B if requested and info available
-        if auto_load_best and not current_best and model_name:
-            try:
-                # Extract dataset from attack_results metadata if available
-                dataset = kwargs.get('dataset', 'cifar10')  # Default fallback
-                batch_size_to_use = batch_size or len(threat_distances)
-                
-                best_data = load_best_distances_with_wandb(
-                    dataset=dataset,
-                    threat_model=threat_model,
-                    model_name=model_name,
-                    batch_size=batch_size_to_use,
-                    cache_dir=cache_dir
-                )
-                if best_data:
-                    current_best = list(best_data.values())
-            except Exception as e:
-                print(f"Warning: Could not auto-load best distances: {e}")
-        
-        # Compute optimality if we have best distances
-        if current_best:
-            try:
-                optimality = eval_optimality(threat_distances_array, current_best)
-                if not np.isnan(optimality):
-                    stats['optimality'] = optimality
-            except Exception as e:
-                print(f"Warning: Could not compute optimality: {e}")
+        try:
+            # Extract metadata for compute_local_optimality
+            dataset = kwargs.get('dataset', None)
+            
+            # Build reference_results from explicit best_distances if provided
+            reference_results = None
+            if best_distances:
+                # Wrap explicit best_distances as a synthetic reference result
+                reference_results = [{
+                    'distances': {threat_model: list(best_distances)}
+                }]
+            elif not best_distances:
+                # Check if best distances are embedded in attack_results
+                best_optim = attack_results.get('best_optim_distances', {})
+                if threat_model in best_optim and best_optim[threat_model]:
+                    reference_results = [{
+                        'distances': {threat_model: best_optim[threat_model]}
+                    }]
+            
+            opt_result = compute_local_optimality(
+                attack_results=attack_results,
+                reference_results=reference_results,
+                threat_model=threat_model,
+                dataset=dataset,
+                model_name=model_name,
+                use_wandb=auto_load_best and reference_results is None,
+                cache_dir=cache_dir
+            )
+            if not np.isnan(opt_result['optimality']):
+                stats['optimality'] = opt_result['optimality']
+        except Exception as e:
+            print(f"Warning: Could not compute optimality: {e}")
     
     # 3. OPTIONAL: Robust accuracy curves
     if include_curves:

@@ -63,40 +63,37 @@ Local optimality can be computed in two ways:
    results_apgd = attackbench.run_attack(model, dataset, apgd, 'linf', device)
    results_fab = attackbench.run_attack(model, dataset, fab, 'linf', device)
 
-   # Compute local optimality (requires attackbench[metrics])
-   optimality = attackbench.compute_local_optimality(
-       attack_results={
-           'PGD': results_pgd,
-           'APGD': results_apgd,
-           'FAB': results_fab
-       },
+   # Compute local optimality for PGD using other attacks as reference (lower envelope)
+   opt = attackbench.compute_local_optimality(
+       attack_results=results_pgd,
+       reference_results=[results_apgd, results_fab],
        threat_model='linf'
    )
+   print(f"PGD optimality: {opt['optimality']:.3f}")
 
-   # Results per attack
-   for attack_name, opt_values in optimality.items():
-       mean_opt = sum(opt_values) / len(opt_values)
-       print(f"{attack_name}: {mean_opt:.3f}")
+   # Or compare all attacks against each other
+   comparison = attackbench.compare_attacks_optimality(
+       [results_pgd, results_apgd, results_fab],
+       threat_model='linf',
+       attack_names=['PGD', 'APGD', 'FAB']
+   )
+   for name, score in comparison['ranking']:
+       print(f"{name}: {score:.3f}")
 
-When ``optimal_distances`` (a hash-based dict ``{sha512_hash: distance}``) are
-provided, the function matches each sample via its hash rather than relying on
-positional alignment. This means you can evaluate any subset of the dataset and
-still get correct optimality values:
+When downloading optimal distances from W&B, sample matching is done via
+SHA-512 hashes, not positional alignment. This means you can evaluate any
+subset of the dataset and still get correct optimality values:
 
 .. code-block:: python
 
-   # Download hash-based optimal distances from W&B
-   optimal = attackbench.download_optimal_distances(
-       dataset='cifar10',
-       threat_model='linf',
-       model_name='Standard'
-   )
+   # Automatic: uses metadata from run_attack() and downloads optimal from W&B
+   opt = attackbench.compute_local_optimality(results_apgd)
+   print(f"APGD optimality: {opt['optimality']:.2%}")
 
-   optimality = attackbench.compute_local_optimality(
-       attack_results={'APGD': results_apgd},
-       threat_model='linf',
-       optimal_distances=optimal   # hash-based lookup
-   )
+   # get_stats also computes optimality consistently via compute_local_optimality
+   stats = attackbench.get_stats(results_apgd, 'linf')
+   print(f"Optimality from get_stats: {stats['optimality']:.2%}")
+   # Both methods return the same result
 
 Global Optimality
 -----------------
