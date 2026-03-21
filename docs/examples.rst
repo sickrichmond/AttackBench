@@ -246,12 +246,17 @@ Upload and Download Attack Results
 .. code-block:: python
 
    # Upload your attack results to W&B
+   # Metadata is extracted automatically from results['metadata']
+   attackbench.upload_precompiled_distances(attack_data=results)
+
+   # Or pass metadata explicitly (e.g. for custom attacks)
    attackbench.upload_precompiled_distances(
        attack_data=results,
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard',
-       attack_name='pgd'
+       attack_name='pgd',
+       attack_lib='foolbox'
    )
 
    # Download precompiled distances from W&B

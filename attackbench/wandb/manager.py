@@ -76,28 +76,38 @@ def upload_precompiled_distances(
     """
     Upload precompiled distances to W&B.
     
-    Two usage modes:
+    Three usage modes:
     1. Pass file_path directly (legacy)
-    2. Pass attack_data + metadata (automatic file creation)
+    2. Pass attack_data only (metadata extracted automatically from attack_data['metadata'])
+    3. Pass attack_data + explicit metadata (overrides extracted values)
     
     Args:
         file_path: Path to JSON file (optional if attack_data provided)
-        attack_data: Raw attack results dict (optional if file_path provided)
-        dataset: Dataset name (required if attack_data provided)
-        threat_model: Threat model (required if attack_data provided)
-        model_name: Model name (required if attack_data provided)
-        attack_name: Attack name (required if attack_data provided)
-        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks')
+        attack_data: Raw attack results dict from run_attack() (optional if file_path provided)
+        dataset: Dataset name (optional, extracted from attack_data if not provided)
+        threat_model: Threat model (optional, extracted from attack_data if not provided)
+        model_name: Model name (optional, extracted from attack_data if not provided)
+        attack_name: Attack name (optional, extracted from attack_data if not provided)
+        attack_lib: Library implementing the attack (optional, extracted from attack_data if not provided)
         overwrite: Whether to overwrite existing artifacts
         
     Returns:
         True if upload successful, False otherwise
     """
     
-    # Mode 2: Create file from attack_data
+    # Mode 2/3: Create file from attack_data
     if attack_data is not None:
+        # Auto-extract metadata from attack_data if not explicitly provided
+        meta = attack_data.get('metadata', {})
+        dataset = dataset or meta.get('dataset')
+        threat_model = threat_model or meta.get('threat_model')
+        model_name = model_name or meta.get('model_name')
+        attack_name = attack_name or meta.get('attack_name')
+        attack_lib = attack_lib or meta.get('attack_lib')
+        
         if not all([dataset, threat_model, model_name, attack_name, attack_lib]):
-            print("Error: Must provide dataset, threat_model, model_name, attack_name, attack_lib with attack_data")
+            print("Error: Missing metadata. Provide dataset, threat_model, model_name, attack_name, attack_lib "
+                  "either explicitly or via attack_data['metadata'] (from run_attack)")
             return False
         
         from ..metrics.storage import save_precompiled_distances

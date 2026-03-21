@@ -160,3 +160,6 @@ dmypy.json
 # local configuration
 /compiled/
 /exp_configs/
+
+# uploads_temp_files
+/temp_upload/

@@ -261,6 +261,18 @@ You need to authenticate before using any W&B features:
 How do I upload my results?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+If you used ``get_loader()``, ``get_model()``, and ``get_attack()`` to set up
+your pipeline, ``run_attack()`` embeds all the necessary metadata automatically:
+
+.. code-block:: python
+
+   results = attackbench.run_attack(model, loader, attack, threat_model='linf')
+
+   # Metadata is extracted automatically from results['metadata']
+   attackbench.upload_precompiled_distances(attack_data=results)
+
+You can also pass metadata explicitly (e.g. for custom attacks):
+
 .. code-block:: python
 
    attackbench.upload_precompiled_distances(
@@ -268,7 +280,8 @@ How do I upload my results?
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard',
-       attack_name='my_attack'
+       attack_name='my_attack',
+       attack_lib='custom'
    )
 
 Can I use AttackBenchLib offline?
