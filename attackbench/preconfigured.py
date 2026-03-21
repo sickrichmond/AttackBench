@@ -24,8 +24,9 @@ from .attacks.original.configs import (
 )
 
 # Create attack instances with default parameters
+# Note: threat_model is NOT set here — it is injected at runtime
+# by run_attack() based on its threat_model parameter.
 pgd = get_original_apgd(
-    threat_model='linf', 
     num_steps=40, 
     num_restarts=1, 
     epsilon=8/255, 
@@ -37,7 +38,6 @@ pgd._attackbench_name = 'pgd'
 pgd._attackbench_lib = 'original'
 
 fgsm = get_original_apgd(  # APGD con 1 step = FGSM-like
-    threat_model='linf', 
     num_steps=1, 
     num_restarts=1, 
     epsilon=8/255, 
@@ -49,7 +49,6 @@ fgsm._attackbench_name = 'fgsm'
 fgsm._attackbench_lib = 'original'
 
 apgd = get_original_apgd(
-    threat_model='linf', 
     num_steps=100, 
     num_restarts=1, 
     epsilon=8/255, 
@@ -61,7 +60,6 @@ apgd._attackbench_name = 'apgd'
 apgd._attackbench_lib = 'original'
 
 fab = get_original_fab(
-    threat_model='linf', 
     num_restarts=1, 
     num_steps=100, 
     epsilon=8/255, 
@@ -75,7 +73,6 @@ fab._attackbench_name = 'fab'
 fab._attackbench_lib = 'original'
 
 fmn = get_original_fmn(
-    threat_model='linf', 
     num_steps=1000, 
     max_step_size=10, 
     gamma=0.05
@@ -102,7 +99,6 @@ superdeepfool._attackbench_name = 'superdeepfool'
 superdeepfool._attackbench_lib = 'original'
 
 trust_region = get_original_tr(
-    threat_model='linf', 
     adaptive=False, 
     epsilon=0.001, 
     c=9, 

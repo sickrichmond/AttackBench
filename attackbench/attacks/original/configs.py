@@ -42,10 +42,13 @@ def original_apgd_l1():
     use_largereps = True  # set True with L1 norm
 
 
-def get_original_apgd(threat_model: str, num_steps: int, num_restarts: int, epsilon: float, loss: str, rho: float,
-                      use_largereps: bool) -> Callable:
-    return partial(apgd_attack, threat_model=threat_model, n_iter=num_steps, n_restarts=num_restarts, eps=epsilon,
-                   loss=loss, rho=rho, use_largereps=use_largereps)
+def get_original_apgd(num_steps: int, num_restarts: int, epsilon: float, loss: str, rho: float,
+                      use_largereps: bool, threat_model: str = None) -> Callable:
+    kwargs = dict(n_iter=num_steps, n_restarts=num_restarts, eps=epsilon,
+                  loss=loss, rho=rho, use_largereps=use_largereps)
+    if threat_model is not None:
+        kwargs['threat_model'] = threat_model
+    return partial(apgd_attack, **kwargs)
 
 
 def original_apgd_minimal():
@@ -169,11 +172,15 @@ def original_fab():
     n_target_classes = 9
 
 
-def get_original_fab(threat_model: str, num_restarts: int, num_steps: int, epsilon: Optional[float], alpha_max: float,
-                     eta: float, beta: float, targeted_variant: bool, n_target_classes: int) -> Callable:
-    return partial(fab_attack, threat_model=threat_model, n_restarts=num_restarts, n_iter=num_steps, eps=epsilon,
-                   alpha_max=alpha_max, eta=eta, beta=beta, targeted_variant=targeted_variant,
-                   n_target_classes=n_target_classes)
+def get_original_fab(num_restarts: int, num_steps: int, epsilon: Optional[float], alpha_max: float,
+                     eta: float, beta: float, targeted_variant: bool, n_target_classes: int,
+                     threat_model: str = None) -> Callable:
+    kwargs = dict(n_restarts=num_restarts, n_iter=num_steps, eps=epsilon,
+                  alpha_max=alpha_max, eta=eta, beta=beta, targeted_variant=targeted_variant,
+                  n_target_classes=n_target_classes)
+    if threat_model is not None:
+        kwargs['threat_model'] = threat_model
+    return partial(fab_attack, **kwargs)
 
 
 def original_fmn():
@@ -194,8 +201,12 @@ def original_fmn_linf():
     gamma = 0.05
 
 
-def get_original_fmn(threat_model: str, num_steps: int, max_step_size: float, gamma: float) -> Callable:
-    return partial(fmn_attack, threat_model=threat_model, steps=num_steps, max_stepsize=max_step_size, gamma=gamma)
+def get_original_fmn(num_steps: int, max_step_size: float, gamma: float,
+                     threat_model: str = None) -> Callable:
+    kwargs = dict(steps=num_steps, max_stepsize=max_step_size, gamma=gamma)
+    if threat_model is not None:
+        kwargs['threat_model'] = threat_model
+    return partial(fmn_attack, **kwargs)
 
 
 def original_tr():
@@ -218,8 +229,12 @@ def original_tr_adaptive():
     num_steps = 100
 
 
-def get_original_tr(threat_model: str, adaptive: bool, epsilon: float, c: int, num_steps: int) -> Callable:
-    return partial(tr_attack, threat_model=threat_model, adaptive=adaptive, eps=epsilon, c=c, iter=num_steps)
+def get_original_tr(adaptive: bool, epsilon: float, c: int, num_steps: int,
+                    threat_model: str = None) -> Callable:
+    kwargs = dict(adaptive=adaptive, eps=epsilon, c=c, iter=num_steps)
+    if threat_model is not None:
+        kwargs['threat_model'] = threat_model
+    return partial(tr_attack, **kwargs)
 
 
 def original_sigma_zero():

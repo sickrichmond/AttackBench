@@ -299,12 +299,14 @@ def run_attack(
 
         if debug:
             adv_inputs = _call_attack(
-                attack, model, attack_inputs, attack_labels, targeted, None, **kwargs
+                attack, model, attack_inputs, attack_labels, targeted, None,
+                threat_model=threat_model, **kwargs
             )
         else:
             try:
                 adv_inputs = _call_attack(
-                    attack, model, attack_inputs, attack_labels, targeted, None, **kwargs
+                    attack, model, attack_inputs, attack_labels, targeted, None,
+                    threat_model=threat_model, **kwargs
                 )
                 batch_failures.append(False)
             except Exception:

@@ -138,22 +138,57 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
     return sorted(results)
 
 
-def get_attack(lib: str, attack: str, threat_model: str = None, **kwargs) -> Callable:
+def _is_attack_compatible(lib: str, attack: str, threat_model: str) -> bool:
+    """
+    Check whether an attack is compatible with a given threat model.
+
+    An attack is considered compatible if:
+      - Its getter function accepts a ``threat_model`` parameter (multi-norm), OR
+      - There is a config function whose ``threat_model`` matches.
+    """
+    # 1) Multi-norm: getter accepts threat_model
+    getter_func = library_getters[lib][attack]
+    sig = inspect.signature(getter_func)
+    if 'threat_model' in sig.parameters:
+        return True
+
+    # 2) Check config functions
+    for config_name, config_func in attack_configs[lib].items():
+        params = _parse_config_params(config_func)
+        cfg_tm = params.get('threat_model')
+        if cfg_tm != threat_model:
+            continue
+        # Map config name back to getter name
+        if config_name == attack:
+            return True
+        for suffix in (f'_{threat_model}', '_NQ'):
+            if config_name.endswith(suffix):
+                candidate = config_name[:-len(suffix)]
+                if candidate == attack:
+                    return True
+
+    return False
+
+
+def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
     """
     Get attack function by library and attack name.
     
     Args:
         lib: Attack library name ('adv_lib', 'art', 'cleverhans', etc.)
         attack: Attack name within the library ('pgd', 'fgsm', etc.)
-        threat_model: Threat model for smart defaults
+        threat_model: Threat model ('l0', 'l1', 'l2', 'linf'). Required.
         **kwargs: Additional parameters to override defaults
         
     Returns:
         Attack function ready to use
         
+    Raises:
+        ValueError: If the attack is not available for the given threat model.
+        
     Examples:
         attack = get_attack(lib='adv_lib', attack='pgd', threat_model='linf')
-        attack = get_attack(lib='torchattacks', attack='fgsm')
+        attack = get_attack(lib='torchattacks', attack='cw_l2', threat_model='l2')
     """
     
     if lib not in library_getters:
@@ -163,6 +198,14 @@ def get_attack(lib: str, attack: str, threat_model: str = None, **kwargs) -> Cal
     if attack not in library_getters[lib]:
         available_attacks = list(library_getters[lib].keys())
         raise ValueError(f"Unknown attack '{attack}' for library '{lib}'. Available: {available_attacks}")
+    
+    # Validate threat model compatibility
+    if not _is_attack_compatible(lib, attack, threat_model):
+        compatible = [a for _, a in list_attacks(threat_model=threat_model, lib=lib)]
+        raise ValueError(
+            f"Attack '{attack}' from '{lib}' is not available for threat model '{threat_model}'. "
+            f"Compatible attacks for '{lib}' + '{threat_model}': {compatible}"
+        )
     
     # Get the configuration function and getter function
     config_func = attack_configs[lib].get(attack)
@@ -230,7 +273,7 @@ def _get_smart_defaults(lib: str, attack: str, missing_params: list, threat_mode
         elif param_name in ['relative_step_size']:
             defaults[param_name] = 0.1    # Default relative step size
         elif param_name in ['threat_model', 'norm']:
-            defaults[param_name] = threat_model or 'linf'
+            defaults[param_name] = threat_model
         elif param_name in ['num_random_init', 'random_init']:
             defaults[param_name] = 0
         elif param_name in ['random_eps', 'random_start']:
