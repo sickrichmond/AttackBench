@@ -348,7 +348,14 @@ def run_attack(
         adv_success.extend(success.cpu().tolist())
 
         for metric_name, metric_func in metrics.items():
-            distances[metric_name].extend(metric_func(adv_inputs, inputs).cpu().tolist())
+            batch_distances = metric_func(adv_inputs, inputs)
+            # Failed attacks return the original input (distance ≈ 0).
+            # Set distance to inf so they are correctly treated as failures
+            # in SEC/optimality computations. Preserve distance=0 for samples
+            # that were already misclassified (ori_success=True).
+            failed_mask = ~success & ~model.ori_success
+            batch_distances[failed_mask] = float('inf')
+            distances[metric_name].extend(batch_distances.cpu().tolist())
             best_optim_distances[metric_name].extend(model.min_dist[metric_name].cpu().tolist())
 
     # ── Package results ──────────────────────────────────────────────────

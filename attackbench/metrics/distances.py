@@ -72,12 +72,17 @@ def eval_optimality(adv_distances: np.ndarray, best_distances: list) -> float:
     max_dist = np.amax(distances)
     best_area = _trapz(robust_acc, distances)
 
-    # Clip distances to max_dist for fair comparison
-    distances_clipped, counts = np.unique(adv_distances.clip(min=None, max=max_dist), return_counts=True)
-    robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
-
-    # Calculate area under clipped curve
-    area = _trapz(robust_acc_clipped, distances_clipped)
+    # Compute attack SEC: exclude inf distances (failed attacks) but count
+    # them in the denominator so robust accuracy stays high for failures
+    finite_mask = np.isfinite(adv_distances)
+    if not finite_mask.any():
+        # No successful attacks → SEC is flat at clean_acc over [0, max_dist]
+        area = clean_acc * max_dist
+    else:
+        adv_finite = adv_distances[finite_mask].clip(max=max_dist)
+        distances_clipped, counts = np.unique(adv_finite, return_counts=True)
+        robust_acc_clipped = 1 - counts.cumsum() / len(adv_distances)
+        area = _trapz(robust_acc_clipped, distances_clipped)
     
     # Calculate optimality (normalized AUC difference)
     denominator = clean_acc * max_dist - best_area
