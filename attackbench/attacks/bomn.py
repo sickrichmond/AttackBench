@@ -105,8 +105,10 @@ def bomn_attack(
         'distances': distances,
         'final_distances': final_distances,
         'adv_success': gather('adv_success'),
+        'adversarial_predictions': gather('adversarial_predictions'),
         'ori_success': results[0]['ori_success'],
         'correct': results[0]['correct'],
+        'original_predictions': results[0]['original_predictions'],
         'hashes': hashes,
         # The composite spends what all of its components spent
         'num_forwards': np.sum([r['num_forwards'] for r in results], axis=0).tolist(),

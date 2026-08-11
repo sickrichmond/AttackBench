@@ -77,7 +77,7 @@ all = [
 
 # Development package
 dev = [
-    "pytest>=6.0",
+    "pytest>=7.0",  # 7.0 for [tool.pytest.ini_options] pythonpath
     "black>=22.0",
     "isort>=5.0",
     "flake8>=4.0",
@@ -98,3 +98,4 @@ include = ["attackbench*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+pythonpath = ["."]  # run the suite from a checkout without installing first
