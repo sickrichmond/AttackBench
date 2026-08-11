@@ -135,6 +135,13 @@ def get_art_bb(threat_model: str, overshoot: float, num_steps: int, step_size: f
                    binary_search_steps=num_binary_search_steps, init_size=init_size)
 
 
+if BrendelBethgeAttack is None:
+    # ART dropped BrendelBethgeAttack after 1.18. Unregister the attack instead of
+    # leaving it discoverable: list_attacks() is used to drive sweeps, so everything it
+    # lists has to be buildable — otherwise one missing implementation aborts the run.
+    del art_bb, get_art_bb
+
+
 def art_cw_l2():
     return dict(
         name='cw_l2',

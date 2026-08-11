@@ -1,7 +1,8 @@
 import inspect
 import sys
+import warnings
 from collections import defaultdict
-from functools import partial
+from functools import lru_cache, partial
 from typing import Callable
 
 from .art import configs as art_configs
@@ -70,8 +71,12 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
     
     An attack is considered compatible with a threat model if:
       - It has a config function whose ``threat_model`` matches, OR
-      - Its getter function accepts a ``threat_model`` parameter (multi-norm attack).
-    
+      - Its getter accepts a ``threat_model`` parameter (multi-norm attack) *and* it has
+        a config to take its hyperparameters from for that norm.
+
+    Everything listed here can be built with :func:`get_attack`, so the list can be used
+    to drive a sweep without a missing implementation aborting it halfway.
+
     Args:
         threat_model: Filter by threat model ('l0', 'l1', 'l2', 'linf').
                       If None, returns all attacks.
@@ -124,17 +129,53 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
                                 matched_getters.add(candidate)
                                 break
 
-            # 2) Include multi-norm attacks: if the getter accepts a
-            #    ``threat_model`` parameter it can work with any norm.
+            # 2) Include multi-norm attacks: a getter that accepts ``threat_model`` works
+            #    with any norm it has a config for.
             for getter_name, getter_func in library_getters[lib_name].items():
                 sig = inspect.signature(getter_func)
-                if 'threat_model' in sig.parameters:
+                if 'threat_model' in sig.parameters \
+                        and _config_for(lib_name, getter_name, threat_model) is not None:
                     matched_getters.add(getter_name)
 
             for name in sorted(matched_getters):
-                results.append((lib_name, name))
+                if _can_build(lib_name, name, threat_model):
+                    results.append((lib_name, name))
 
     return sorted(results)
+
+
+@lru_cache(maxsize=None)
+def _can_build(lib: str, attack: str, threat_model: str) -> bool:
+    """
+    Whether get_attack() actually produces this attack for this norm.
+
+    Some getters cover only a subset of the norms (Foolbox's BIM has no l0 variant), and
+    a listing that advertises them aborts a sweep halfway through. Building is cheap —
+    the getters return partials — and the result is memoised.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        try:
+            get_attack(lib=lib, attack=attack, threat_model=threat_model)
+            return True
+        except Exception:
+            return False
+
+
+def _config_for(lib: str, attack: str, threat_model: str = None):
+    """
+    The config function backing (attack, threat_model), or None.
+
+    Config names may carry a norm suffix (``alma_l1``) while the getter is named after
+    the attack family (``get_adv_lib_alma``), so an exact-name lookup alone would find
+    nothing and leave the attack running on generic defaults instead of its own config.
+    """
+    configs = attack_configs[lib]
+    if attack in configs:
+        return configs[attack]
+    if threat_model is not None:
+        return configs.get(f'{attack}_{threat_model}')
+    return None
 
 
 def _is_attack_compatible(lib: str, attack: str, threat_model: str) -> bool:
@@ -145,11 +186,13 @@ def _is_attack_compatible(lib: str, attack: str, threat_model: str) -> bool:
       - Its getter function accepts a ``threat_model`` parameter (multi-norm), OR
       - There is a config function whose ``threat_model`` matches.
     """
-    # 1) Multi-norm: getter accepts threat_model
+    # 1) Multi-norm: the getter takes a threat_model AND there is a config to source the
+    #    attack's parameters from for that norm (a multi-norm getter with no usable
+    #    config cannot be built without inventing hyperparameters).
     getter_func = library_getters[lib][attack]
     sig = inspect.signature(getter_func)
     if 'threat_model' in sig.parameters:
-        return True
+        return _config_for(lib, attack, threat_model) is not None
 
     # 2) Check config functions
     for config_name, config_func in attack_configs[lib].items():
@@ -205,101 +248,57 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
         )
     
     # Get the configuration function and getter function
-    config_func = attack_configs[lib].get(attack)
+    config_func = _config_for(lib, attack, threat_model)
     getter_func = library_getters[lib][attack]
-    
-    # Parameters declared by the config function
-    if config_func:
-        params = dict(config_func())
-    else:
-        print(f"Warning: No configuration function found for {lib}_{attack}")
-        params = {}
-
-    # Check for missing required parameters
     sig = inspect.signature(getter_func)
-    required_params = [p for p in sig.parameters.values() 
-                      if p.default == inspect.Parameter.empty and p.name != 'self']
-    
-    # Apply smart defaults for missing parameters
-    missing_params = [p.name for p in required_params if p.name not in params]
-    if missing_params:
-        default_values = _get_smart_defaults(lib, attack, missing_params, threat_model)
-        params.update(default_values)
-    
+
+    # Parameters declared by the config function
+    params = dict(config_func()) if config_func else {}
+
     # Override with user-provided kwargs
     params.update(kwargs)
-    
+
+    # The caller asked for this threat model, so it wins over the one the config
+    # happens to declare. Without this a multi-norm attack requested for 'l2' was built
+    # with the config's norm — list_attacks('l2') then fed a benchmark full of linf
+    # attacks labelled l2.
+    if 'threat_model' in sig.parameters and 'threat_model' not in kwargs:
+        declared = params.get('threat_model')
+        if declared is not None and declared != threat_model and 'epsilon' in params:
+            warnings.warn(
+                f"'{attack}' from '{lib}' has no config for '{threat_model}': using the "
+                f"'{declared}' one, so its perturbation budget (epsilon={params['epsilon']}) "
+                f"is the one chosen for '{declared}'. Pass epsilon=... for a budget that "
+                f"means something under '{threat_model}'."
+            )
+        params['threat_model'] = threat_model
+
     # Filter parameters to match function signature
     filtered_params = {k: v for k, v in params.items() if k in sig.parameters}
+
+    missing = [p.name for p in sig.parameters.values()
+               if p.default is inspect.Parameter.empty and p.name != 'self'
+               and p.name not in filtered_params]
+    if missing:
+        raise ValueError(
+            f"Cannot build '{attack}' from '{lib}' for threat model '{threat_model}': "
+            f"no value for {missing}. The config functions for this attack are "
+            f"{sorted(n for n in attack_configs[lib] if n == attack or n.startswith(attack + '_'))}"
+            f" — add one for '{threat_model}' or pass the parameters explicitly. "
+            f"(Guessing them would silently benchmark a differently configured attack.)"
+        )
     
     # Call the getter function
-    try:
-        attack_instance = getter_func(**filtered_params)
-        wrapper = library_modules[lib]._wrapper
-        
-        if isinstance(attack_instance, dict):
-            attack_fn = partial(wrapper, **attack_instance)
-        else:
-            attack_fn = partial(wrapper, attack=attack_instance)
-        
-        # Attach metadata for automatic extraction in run_attack
-        attack_fn._attackbench_name = attack
-        attack_fn._attackbench_lib = lib
-        
-        return attack_fn
-            
-    except Exception as e:
-        print(f"Error creating attack {lib}_{attack}: {e}")
-        print(f"Function signature: {sig}")
-        print(f"Provided params: {filtered_params}")
-        raise
+    attack_instance = getter_func(**filtered_params)
+    wrapper = library_modules[lib]._wrapper
 
+    if isinstance(attack_instance, dict):
+        attack_fn = partial(wrapper, **attack_instance)
+    else:
+        attack_fn = partial(wrapper, attack=attack_instance)
 
-def _get_smart_defaults(lib: str, attack: str, missing_params: list, threat_model: str = None) -> dict:
-    """Generate smart default values for missing parameters"""
-    defaults = {}
-    
-    for param_name in missing_params:
-        # General defaults based on parameter name
-        if param_name in ['eps', 'epsilon']:
-            defaults[param_name] = 8/255  # Default L-infinity budget
-        elif param_name in ['num_steps', 'steps', 'iterations']:
-            defaults[param_name] = 40     # Default number of iterations
-        elif param_name in ['step_size', 'alpha']:
-            defaults[param_name] = 2/255  # Default step size
-        elif param_name in ['relative_step_size']:
-            defaults[param_name] = 0.1    # Default relative step size
-        elif param_name in ['threat_model', 'norm']:
-            defaults[param_name] = threat_model
-        elif param_name in ['num_random_init', 'random_init']:
-            defaults[param_name] = 0
-        elif param_name in ['random_eps', 'random_start']:
-            defaults[param_name] = False
-        elif param_name in ['targeted']:
-            defaults[param_name] = False
-        elif param_name in ['clip_min']:
-            defaults[param_name] = 0.0
-        elif param_name in ['clip_max']:
-            defaults[param_name] = 1.0
-        elif param_name in ['loss_fn', 'loss']:
-            defaults[param_name] = None
-        
-        # Library-specific defaults
-        elif lib == 'adv_lib':
-            if param_name == 'relative_step_size':
-                defaults[param_name] = 0.1 
-            elif param_name == 'abs_step_size':
-                defaults[param_name] = None
-        elif lib == 'art':
-            if param_name == 'estimator':
-                defaults[param_name] = None  
-        elif lib == 'foolbox':
-            if param_name == 'distance':
-                defaults[param_name] = 'linf'
-        
-        # Fallback to None if no smart default found
-        if param_name not in defaults:
-            print(f"Warning: No smart default found for parameter '{param_name}', using None")
-            defaults[param_name] = None
-    
-    return defaults
+    # Attach metadata for automatic extraction in run_attack
+    attack_fn._attackbench_name = attack
+    attack_fn._attackbench_lib = lib
+
+    return attack_fn
