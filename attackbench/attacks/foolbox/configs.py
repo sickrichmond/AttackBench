@@ -35,26 +35,30 @@ _wrapper = foolbox_wrapper
 
 
 def fb_bb():
-    name = 'bb'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l0', 'l1', 'l2', 'linf'
-    num_steps = 1000
-    step_size = 0.001
-    lr_decay = 0.5
-    lr_num_decay = 20
-    momentum = 0.8
-    num_binary_search_steps = 10
+    return dict(
+        name='bb',
+        source='foolbox',
+        threat_model='linf',  # available: 'l0', 'l1', 'l2', 'linf'
+        num_steps=1000,
+        step_size=0.001,
+        lr_decay=0.5,
+        lr_num_decay=20,
+        momentum=0.8,
+        num_binary_search_steps=10,
+    )
 
 def fb_bb_adv():
-    name = 'bb'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l0', 'l1', 'l2', 'linf'
-    num_steps = 1
-    step_size = 0.001
-    lr_decay = 0.5
-    lr_num_decay = 20
-    momentum = 0.8
-    num_binary_search_steps = 10
+    return dict(
+        name='bb',
+        source='foolbox',
+        threat_model='linf',  # available: 'l0', 'l1', 'l2', 'linf'
+        num_steps=1,
+        step_size=0.001,
+        lr_decay=0.5,
+        lr_num_decay=20,
+        momentum=0.8,
+        num_binary_search_steps=10,
+    )
 
 _bb_attacks = {
     'l0': L0BrendelBethgeAttack,
@@ -76,15 +80,17 @@ def get_fb_bb_adv(threat_model: str, num_steps: int, step_size: float, lr_decay:
 
 
 def fb_cw_l2():
-    name = 'cw_l2'
-    source = 'foolbox'
-    threat_model = 'l2'
-    num_steps = 1000  # default was 10000
-    num_binary_search_steps = 9
-    step_size = 0.01
-    confidence = 0
-    initial_const = 0.001
-    abort_early = True
+    return dict(
+        name='cw_l2',
+        source='foolbox',
+        threat_model='l2',
+        num_steps=1000,  # default was 10000
+        num_binary_search_steps=9,
+        step_size=0.01,
+        confidence=0,
+        initial_const=0.001,
+        abort_early=True,
+    )
 
 
 def get_fb_cw_l2(num_binary_search_steps: int, num_steps: int, step_size: float, confidence: float,
@@ -94,9 +100,11 @@ def get_fb_cw_l2(num_binary_search_steps: int, num_steps: int, step_size: float,
 
 
 def fb_dataset():
-    name = 'dataset'
-    source = 'foolbox'
-    threat_model = 'l2'
+    return dict(
+        name='dataset',
+        source='foolbox',
+        threat_model='l2',
+    )
 
 
 def get_fb_dataset():
@@ -104,12 +112,14 @@ def get_fb_dataset():
 
 
 def fb_ddn():
-    name = 'ddn'
-    source = 'foolbox'
-    threat_model = 'l2'
-    init_epsilon = 1
-    num_steps = 100
-    gamma = 0.05
+    return dict(
+        name='ddn',
+        source='foolbox',
+        threat_model='l2',
+        init_epsilon=1,
+        num_steps=100,
+        gamma=0.05,
+    )
 
 
 def get_fb_ddn(init_epsilon: float, num_steps: int, gamma: float) -> Callable:
@@ -117,13 +127,15 @@ def get_fb_ddn(init_epsilon: float, num_steps: int, gamma: float) -> Callable:
 
 
 def fb_deepfool():
-    name = 'deepfool'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    num_steps = 50
-    candidates = 10
-    overshoot = 0.02
-    loss = 'logits'  # ∈ {'logits', 'crossentropy'}
+    return dict(
+        name='deepfool',
+        source='foolbox',
+        threat_model='linf',  # available: 'l2', 'linf'
+        num_steps=50,
+        candidates=10,
+        overshoot=0.02,
+        loss='logits',  # ∈ {'logits', 'crossentropy'}
+    )
 
 
 _deepfool_attacks = {
@@ -138,17 +150,19 @@ def get_fb_deepfool(threat_model: str, num_steps: int, candidates: int, overshoo
 
 
 def fb_ead():
-    name = 'ead'
-    source = 'foolbox'
-    threat_model = 'l1'
-    num_binary_search_steps = 9
-    num_steps = 10000
-    step_size = 0.01
-    confidence = 0
-    initial_const = 0.001
-    regularization = 0.01
-    decision_rule = 'EN'  # ∈ {'EN', 'L1'}
-    abort_early = True
+    return dict(
+        name='ead',
+        source='foolbox',
+        threat_model='l1',
+        num_binary_search_steps=9,
+        num_steps=10000,
+        step_size=0.01,
+        confidence=0,
+        initial_const=0.001,
+        regularization=0.01,
+        decision_rule='EN',  # ∈ {'EN', 'L1'}
+        abort_early=True,
+    )
 
 
 def get_fb_ead(num_binary_search_steps: float, num_steps: int, step_size: float, confidence: float,
@@ -159,15 +173,17 @@ def get_fb_ead(num_binary_search_steps: float, num_steps: int, step_size: float,
 
 
 def fb_fmn():
-    name = 'fmn'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l0', 'l1', 'l2', 'linf'
-    num_steps = 100
-    max_stepsize = 1
-    min_stepsize = None
-    gamma = 0.05
-    init_attack = None
-    num_binary_search_steps = 10
+    return dict(
+        name='fmn',
+        source='foolbox',
+        threat_model='linf',  # available: 'l0', 'l1', 'l2', 'linf'
+        num_steps=100,
+        max_stepsize=1,
+        min_stepsize=None,
+        gamma=0.05,
+        init_attack=None,
+        num_binary_search_steps=10,
+    )
 
 
 _fmn_attacks = {
@@ -185,13 +201,15 @@ def get_fb_fmn(threat_model: str, num_steps: int, max_stepsize: float, gamma: fl
 
 
 def fb_pgd():
-    name = 'pgd'
-    source = 'foolbox'
-    threat_model = 'l2'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
-    num_steps = 40 # default was 50. We decided to keep the original num_steps reported in the paper
-    step_size = 0.025
-    abs_stepsize = None
+    return dict(
+        name='pgd',
+        source='foolbox',
+        threat_model='l2',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+        num_steps=40,  # default was 50. We decided to keep the original num_steps reported in the paper
+        step_size=0.025,
+        abs_stepsize=None,
+    )
 
 
 _pgd_attacks = {
@@ -207,12 +225,14 @@ def get_fb_pgd(threat_model: str, epsilon: float, num_steps: int, step_size: flo
 
 
 def fb_pgd_minimal():
-    name = 'pgd_minimal'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 50
-    step_size = 0.025
-    abs_stepsize = None
+    return dict(
+        name='pgd_minimal',
+        source='foolbox',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=50,
+        step_size=0.025,
+        abs_stepsize=None,
+    )
 
 
 def get_fb_pgd_minimal(threat_model: str, num_steps: int, step_size: float, abs_stepsize: float,
@@ -224,10 +244,12 @@ def get_fb_pgd_minimal(threat_model: str, num_steps: int, step_size: float, abs_
 
 
 def fb_fgm():
-    name = 'fgm'
-    source = 'foolbox'
-    threat_model = 'l2'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
+    return dict(
+        name='fgm',
+        source='foolbox',
+        threat_model='l2',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+    )
 
 
 _fgm_attacks = {
@@ -242,9 +264,11 @@ def get_fb_fgm(threat_model: str, epsilon: float) -> Callable:
 
 
 def fb_fgm_minimal():
-    name = 'fgm_minimal'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
+    return dict(
+        name='fgm_minimal',
+        source='foolbox',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+    )
 
 
 def get_fb_fgm_minimal(threat_model: str,
@@ -256,13 +280,15 @@ def get_fb_fgm_minimal(threat_model: str,
 
 
 def fb_bim():
-    name = 'bim'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
-    num_steps = 10
-    step_size = 0.2
-    abs_stepsize = None
+    return dict(
+        name='bim',
+        source='foolbox',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+        num_steps=10,
+        step_size=0.2,
+        abs_stepsize=None,
+    )
 
 
 _bim_attacks = {
@@ -278,12 +304,14 @@ def get_fb_bim(threat_model: str, epsilon: float, num_steps: int, step_size: flo
 
 
 def fb_bim_minimal():
-    name = 'bim_minimal'
-    source = 'foolbox'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 10
-    step_size = 0.2
-    abs_stepsize = None
+    return dict(
+        name='bim_minimal',
+        source='foolbox',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=10,
+        step_size=0.2,
+        abs_stepsize=None,
+    )
 
 
 def get_fb_bim_minimal(threat_model: str, num_steps: int, step_size: float, abs_stepsize: float,

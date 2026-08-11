@@ -1,7 +1,6 @@
 import os
 import urllib.request
 from functools import partial
-from typing import Dict, Any
 
 import torch
 from torch import nn

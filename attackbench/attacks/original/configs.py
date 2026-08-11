@@ -19,27 +19,31 @@ def _wrapper(attack, **kwargs):
 
 
 def original_apgd():
-    name = 'apgd'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 100
-    num_restarts = 1
-    epsilon = 0.3
-    loss = 'ce'  # loss function in ['ce', 'dlr']
-    rho = .75
-    use_largereps = False  # set True with L1 norm
+    return dict(
+        name='apgd',
+        source='original',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=100,
+        num_restarts=1,
+        epsilon=0.3,
+        loss='ce',  # loss function in ['ce', 'dlr']
+        rho=.75,
+        use_largereps=False,  # set True with L1 norm
+    )
 
 
 def original_apgd_l1():
-    name = 'apgd'
-    source = 'original'
-    threat_model = 'l1'
-    num_steps = 100
-    num_restarts = 1
-    epsilon = 10
-    loss = 'ce'  # loss function in ['ce', 'dlr']
-    rho = .75
-    use_largereps = True  # set True with L1 norm
+    return dict(
+        name='apgd',
+        source='original',
+        threat_model='l1',
+        num_steps=100,
+        num_restarts=1,
+        epsilon=10,
+        loss='ce',  # loss function in ['ce', 'dlr']
+        rho=.75,
+        use_largereps=True,  # set True with L1 norm
+    )
 
 
 def get_original_apgd(num_steps: int, num_restarts: int, epsilon: float, loss: str, rho: float,
@@ -52,25 +56,29 @@ def get_original_apgd(num_steps: int, num_restarts: int, epsilon: float, loss: s
 
 
 def original_apgd_minimal():
-    name = 'apgd_minimal'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 100
-    num_restarts = 1
-    loss = 'ce'  # loss function in ['ce', 'dlr']
-    rho = .75
-    use_largereps = False  # set True with L1 norm
+    return dict(
+        name='apgd_minimal',
+        source='original',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=100,
+        num_restarts=1,
+        loss='ce',  # loss function in ['ce', 'dlr']
+        rho=.75,
+        use_largereps=False,  # set True with L1 norm
+    )
 
 
 def original_apgd_minimal_l1():
-    name = 'apgd_minimal'
-    source = 'original'
-    threat_model = 'l1'
-    num_steps = 100
-    num_restarts = 1
-    loss = 'ce'  # loss function in ['ce', 'dlr']
-    rho = .75
-    use_largereps = True  # set True with L1 norm
+    return dict(
+        name='apgd_minimal',
+        source='original',
+        threat_model='l1',
+        num_steps=100,
+        num_restarts=1,
+        loss='ce',  # loss function in ['ce', 'dlr']
+        rho=.75,
+        use_largereps=True,  # set True with L1 norm
+    )
 
 
 def get_original_apgd_minimal(threat_model: str, num_steps: int, num_restarts: int, loss: str, rho: float,
@@ -84,27 +92,31 @@ def get_original_apgd_minimal(threat_model: str, num_steps: int, num_restarts: i
 
 
 def original_apgd_t():
-    name = 'apgd_t'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 100
-    num_restarts = 1
-    num_target_classes = 9
-    epsilon = 0.3
-    rho = .75
-    use_largereps = False  # set True with L1 norm
+    return dict(
+        name='apgd_t',
+        source='original',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=100,
+        num_restarts=1,
+        num_target_classes=9,
+        epsilon=0.3,
+        rho=.75,
+        use_largereps=False,  # set True with L1 norm
+    )
 
 
 def original_apgd_t_l1():
-    name = 'apgd_t'
-    source = 'original'
-    threat_model = 'l1'
-    num_steps = 100
-    num_restarts = 1
-    num_target_classes = 9
-    epsilon = 10
-    rho = .75
-    use_largereps = True  # set True with L1 norm
+    return dict(
+        name='apgd_t',
+        source='original',
+        threat_model='l1',
+        num_steps=100,
+        num_restarts=1,
+        num_target_classes=9,
+        epsilon=10,
+        rho=.75,
+        use_largereps=True,  # set True with L1 norm
+    )
 
 
 def get_original_apgd_t(threat_model: str, num_steps: int, num_restarts: int, num_target_classes: int, epsilon: float,
@@ -114,25 +126,29 @@ def get_original_apgd_t(threat_model: str, num_steps: int, num_restarts: int, nu
 
 
 def original_apgd_t_minimal():
-    name = 'apgd_t_minimal'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_steps = 100
-    num_restarts = 1
-    num_target_classes = 9
-    rho = .75
-    use_largereps = False  # set True with L1 norm
+    return dict(
+        name='apgd_t_minimal',
+        source='original',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_steps=100,
+        num_restarts=1,
+        num_target_classes=9,
+        rho=.75,
+        use_largereps=False,  # set True with L1 norm
+    )
 
 
 def original_apgd_t_minimal_l1():
-    name = 'apgd_t_minimal'
-    source = 'original'
-    threat_model = 'l1'
-    num_steps = 100
-    num_restarts = 1
-    num_target_classes = 9
-    rho = .75
-    use_largereps = True  # set True with L1 norm
+    return dict(
+        name='apgd_t_minimal',
+        source='original',
+        threat_model='l1',
+        num_steps=100,
+        num_restarts=1,
+        num_target_classes=9,
+        rho=.75,
+        use_largereps=True,  # set True with L1 norm
+    )
 
 
 def get_original_apgd_t_minimal(threat_model: str, num_steps: int, num_restarts: int, num_target_classes: int,
@@ -146,12 +162,14 @@ def get_original_apgd_t_minimal(threat_model: str, num_steps: int, num_restarts:
 
 
 def original_deepfool():
-    name = 'deepfool'
-    source = 'original'
-    threat_model = 'l2'
-    num_classes = 10  # number of classes to test gradient (can be different from the number of classes of the model)
-    overshoot = 0.02
-    num_steps = 50
+    return dict(
+        name='deepfool',
+        source='original',
+        threat_model='l2',
+        num_classes=10,  # number of classes to test gradient (can be different from the number of classes of the model)
+        overshoot=0.02,
+        num_steps=50,
+    )
 
 
 def get_original_deepfool(num_classes: int, overshoot: float, num_steps: int) -> Callable:
@@ -159,17 +177,19 @@ def get_original_deepfool(num_classes: int, overshoot: float, num_steps: int) ->
 
 
 def original_fab():
-    name = 'fab'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    num_restarts = 1
-    num_steps = 100
-    epsilon = None
-    alpha_max = 0.1
-    eta = 1.05
-    beta = 0.9
-    targeted_variant = False
-    n_target_classes = 9
+    return dict(
+        name='fab',
+        source='original',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        num_restarts=1,
+        num_steps=100,
+        epsilon=None,
+        alpha_max=0.1,
+        eta=1.05,
+        beta=0.9,
+        targeted_variant=False,
+        n_target_classes=9,
+    )
 
 
 def get_original_fab(num_restarts: int, num_steps: int, epsilon: Optional[float], alpha_max: float,
@@ -184,21 +204,25 @@ def get_original_fab(num_restarts: int, num_steps: int, epsilon: Optional[float]
 
 
 def original_fmn():
-    name = 'fmn'
-    source = 'original'
-    threat_model = 'l2'  # available: 'l0', 'l1', 'l2', 'linf'
-    num_steps = 1000
-    max_step_size = 1
-    gamma = 0.05
+    return dict(
+        name='fmn',
+        source='original',
+        threat_model='l2',  # available: 'l0', 'l1', 'l2', 'linf'
+        num_steps=1000,
+        max_step_size=1,
+        gamma=0.05,
+    )
 
 
 def original_fmn_linf():
-    name = 'fmn'
-    source = 'original'
-    threat_model = 'linf'
-    num_steps = 1000
-    max_step_size = 10
-    gamma = 0.05
+    return dict(
+        name='fmn',
+        source='original',
+        threat_model='linf',
+        num_steps=1000,
+        max_step_size=10,
+        gamma=0.05,
+    )
 
 
 def get_original_fmn(num_steps: int, max_step_size: float, gamma: float,
@@ -210,23 +234,27 @@ def get_original_fmn(num_steps: int, max_step_size: float, gamma: float,
 
 
 def original_tr():
-    name = 'tr'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    adaptive = False
-    epsilon = 0.001
-    c = 9
-    num_steps = 100
+    return dict(
+        name='tr',
+        source='original',
+        threat_model='linf',  # available: 'l2', 'linf'
+        adaptive=False,
+        epsilon=0.001,
+        c=9,
+        num_steps=100,
+    )
 
 
 def original_tr_adaptive():
-    name = 'tr'
-    source = 'original'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    adaptive = True
-    epsilon = 0.001
-    c = 9
-    num_steps = 100
+    return dict(
+        name='tr',
+        source='original',
+        threat_model='linf',  # available: 'l2', 'linf'
+        adaptive=True,
+        epsilon=0.001,
+        c=9,
+        num_steps=100,
+    )
 
 
 def get_original_tr(adaptive: bool, epsilon: float, c: int, num_steps: int,
@@ -238,15 +266,17 @@ def get_original_tr(adaptive: bool, epsilon: float, c: int, num_steps: int,
 
 
 def original_sigma_zero():
-    name = 'sigma_zero'
-    source = 'original'
-    threat_model = 'l0'  # available: 'l0', 'l1', 'l2', 'linf'
-    num_steps = 100
-    lr = 1.0
-    sigma = 1e-3
-    thr_0 = 0.3
-    thr_lr = 0.01
-    binary_search_steps = 10
+    return dict(
+        name='sigma_zero',
+        source='original',
+        threat_model='l0',  # available: 'l0', 'l1', 'l2', 'linf'
+        num_steps=100,
+        lr=1.0,
+        sigma=1e-3,
+        thr_0=0.3,
+        thr_lr=0.01,
+        binary_search_steps=10,
+    )
 
 
 def get_original_sigma_zero(threat_model: str, num_steps: int, lr: float, sigma: float, thr_0: float, thr_lr: float,
@@ -256,14 +286,16 @@ def get_original_sigma_zero(threat_model: str, num_steps: int, lr: float, sigma:
 
 
 def original_pgd0_minimal():
-    name = 'pgd0_minimal'
-    source = 'original'
-    threat_model = 'l0'
-    n_restarts = 1
-    num_steps = 100
-    step_size = 120000 / 255
-    kappa = -1
-    epsilon = -1
+    return dict(
+        name='pgd0_minimal',
+        source='original',
+        threat_model='l0',
+        n_restarts=1,
+        num_steps=100,
+        step_size=120000 / 255,
+        kappa=-1,
+        epsilon=-1,
+    )
 
 
 def get_original_pgd0_minimal(threat_model: str, num_steps, step_size, kappa, epsilon, n_restarts,
@@ -274,13 +306,15 @@ def get_original_pgd0_minimal(threat_model: str, num_steps, step_size, kappa, ep
 
 
 def original_superdeepfool():
-    name = 'superdeepfool'
-    source = 'original'
-    num_classes = 10
-    overshoot = 0.02
-    num_steps = 50
-    alpha = 1.5
-    adaptive_overshoot = True
+    return dict(
+        name='superdeepfool',
+        source='original',
+        num_classes=10,
+        overshoot=0.02,
+        num_steps=50,
+        alpha=1.5,
+        adaptive_overshoot=True,
+    )
 
 
 def get_original_superdeepfool(num_classes: int, overshoot: float, num_steps: int, 

@@ -7,7 +7,7 @@ import json
 import os
 import wandb
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, Union
 
 # Configuration constants
 WANDB_ENTITY = "attackbench"
@@ -112,7 +112,8 @@ def upload_precompiled_distances(
         
         from ..metrics.storage import save_precompiled_distances
         file_path, metadata = save_precompiled_distances(
-            attack_data, dataset, threat_model, model_name, attack_name, attack_lib
+            attack_data, dataset=dataset, threat_model=threat_model, model_name=model_name,
+            attack_name=attack_name, attack_lib=attack_lib
         )
         n_samples = metadata['n_samples']
     else:
@@ -581,247 +582,73 @@ def download_optimal_distances(
         return None
 
 
-def upload_directory(
-    directory: Union[str, Path],
+def update_optimal_distances(
+    attack_results: Dict[str, Any],
     dataset: str = None,
-    overwrite: bool = False,
-    artifact_name: str = None  # For compatibility with test
-) -> Dict[str, bool]:
+    threat_model: str = None,
+    model_name: str = None,
+    cache_dir: str = "./cache",
+    dry_run: bool = False,
+) -> Dict[str, Any]:
     """
-    Upload all JSON files in a directory to W&B.
-    Auto-detects metadata from filename: dataset-threat-model-batch.json
-    
+    Fold one attack run into the optimal distances (lower envelope) stored on W&B.
+
+    This is stage 5 of AttackBench: a new attack only has to update a*, the per-sample
+    best known distance — previously benchmarked attacks are never re-run. The envelope
+    is keyed by the per-sample SHA-512 hash, so runs on different subsets of the same
+    dataset compose without any ordering assumption.
+
     Args:
-        directory: Directory containing JSON files
-        dataset: Filter to specific dataset (None for all)
-        overwrite: Whether to overwrite existing artifacts
-        artifact_name: Custom artifact name (for test compatibility, usually None)
-        
+        attack_results: output of run_attack() — needs 'distances', 'hashes' and 'metadata'
+        dataset / threat_model / model_name: override the values in attack_results['metadata']
+        cache_dir: local cache directory for the W&B download
+        dry_run: compute and report the update without uploading
+
     Returns:
-        Dictionary mapping filename to upload success status
-        
-    Example:
-        >>> results = upload_directory('./compiled', dataset='cifar10')
-        >>> successful = sum(results.values())
-        >>> print(f"Uploaded {successful}/{len(results)} files")
+        Dict with 'improved' (samples whose best distance went down), 'added' (samples not
+        previously in the envelope), 'n_samples' and 'distances' (the merged envelope).
     """
-    
-    directory = Path(directory)
-    if not directory.exists():
-        print(f"Error: Directory not found: {directory}")
-        return {}
-    
-    results = {}
-    json_files = list(directory.glob("*.json"))
-    
-    if not json_files:
-        print(f"Error: No JSON files found in {directory}")
-        return {}
-    
-    print(f"Found {len(json_files)} JSON files in {directory}")
-    
-    # Handle test case with custom artifact_name
-    if artifact_name:
-        print(f"Note: Custom artifact_name '{artifact_name}' provided (test mode)")
-    
-    for file_path in json_files:
-        # Skip files that don't match the expected pattern
-        if file_path.name.count("-") < 3:
-            print(f"Skipping {file_path.name} (invalid format)")
+    meta = attack_results.get('metadata', {})
+    dataset = dataset or meta.get('dataset')
+    threat_model = threat_model or meta.get('threat_model')
+    model_name = model_name or meta.get('model_name')
+    if not all([dataset, threat_model, model_name]):
+        raise ValueError(
+            "dataset, threat_model and model_name are required (pass them explicitly or "
+            "run the attack through run_attack(), which records them in ['metadata'])."
+        )
+
+    hashes = attack_results.get('hashes', [])
+    new_distances = attack_results.get('distances', {}).get(threat_model, [])
+    if not hashes or not new_distances:
+        raise ValueError(f"attack_results has no hashes/distances for threat model '{threat_model}'")
+    if len(hashes) != len(new_distances):
+        raise ValueError(f"hashes ({len(hashes)}) and distances ({len(new_distances)}) disagree")
+
+    current = download_optimal_distances(dataset, threat_model, model_name, cache_dir=cache_dir)
+    envelope = dict((current or {}).get('distances', {}).get(threat_model, {}))
+
+    improved, added = 0, 0
+    for h, d in zip(hashes, new_distances):
+        if d is None or not float(d) == float(d):  # skip NaN
             continue
-        
-        try:
-            # Parse metadata from filename: dataset-threat-model-batch.json
-            parts = file_path.stem.split("-")
-            file_dataset = parts[0]
-            file_threat_model = parts[1]
-            file_batch_size = int(parts[-1])
-            file_model_name = "-".join(parts[2:-1])
-            
-            # Filter by dataset if specified
-            if dataset and file_dataset != dataset:
-                print(f"Skipping {file_path.name} (dataset mismatch)")
-                continue
-            
-            print(f"\nProcessing: {file_path.name}")
-            success = upload_precompiled_distances(
-                file_path, file_dataset, file_threat_model, 
-                file_model_name, file_batch_size, overwrite
-            )
-            results[file_path.name] = success
-            
-        except (ValueError, IndexError) as e:
-            print(f"Error: Invalid filename format: {file_path.name}")
-            results[file_path.name] = False
-    
-    # Summary
-    successful = sum(results.values())
-    total = len(results)
-    print(f"\nSUMMARY: {successful}/{total} files uploaded successfully")
-    
-    if successful < total:
-        failed = [name for name, success in results.items() if not success]
-        print(f"Failed uploads: {failed}")
-    
-    return results
+        previous = envelope.get(h)
+        if previous is None:
+            envelope[h] = float(d)
+            added += 1
+        elif float(d) < float(previous):
+            envelope[h] = float(d)
+            improved += 1
 
-def list_available_distances(dataset: str = None) -> List[Dict[str, Any]]:
-    """
-    List all available precompiled distances on W&B.
-    
-    Args:
-        dataset: Filter to specific dataset (None for all)
-        
-    Returns:
-        List of dictionaries with artifact metadata
-        
-    Example:
-        >>> artifacts = list_available_distances('cifar10')
-        >>> for art in artifacts:
-        ...     print(f"{art['model']} - {art['threat_model']}")
-    """
-    
-    try:
-        # Since direct API listing is problematic, use a workaround
-        # Check what artifacts are actually available by trying known patterns
-        from .wandb_utils import get_precompiled_distances
-        
-        known_datasets = ['cifar10', 'imagenet']
-        known_threats = ['l0', 'l1', 'l2', 'linf']  
-        known_models = ['standard', 'wong_2020', 'salman_2020', 'debenedetti_2022']
-        
-        artifacts_found = []
-        
-        for test_dataset in known_datasets:
-            if dataset and test_dataset != dataset:
-                continue
-                
-            for threat in known_threats:
-                for model in known_models:
-                    try:
-                        # Test if this combination exists by trying to download
-                        test_data = get_precompiled_distances(
-                            dataset=test_dataset,
-                            threat_model=threat,
-                            model_name=model,
-                            batch_size=1000,
-                            cache_dir="/tmp/wandb_test"
-                        )
-                        
-                        if test_data is not None:
-                            artifacts_found.append({
-                                'name': f"{test_dataset}-{threat}-{model}-1000",
-                                'dataset': test_dataset,
-                                'model': model,
-                                'threat_model': threat,
-                                'batch_size': 1000,
-                                'num_samples': len(test_data),
-                                'size_kb': 0,  # Unknown
-                                'version': 'v0',  # Unknown
-                                'created_at': 'unknown'
-                            })
-                    except:
-                        continue
-        
-        return artifacts_found
-        
-        results = []
-        for artifact in artifacts:
-            try:
-                # Debug info
-                print(f"Processing artifact: {getattr(artifact, 'name', 'UNKNOWN')}")
-                
-                # Safely handle metadata
-                if hasattr(artifact, 'metadata'):
-                    metadata = artifact.metadata or {}
-                else:
-                    print(f"Artifact has no metadata attribute")
-                    metadata = {}
-                
-                # Filter by dataset if specified
-                if dataset and metadata.get('dataset') != dataset:
-                    continue
-                
-                results.append({
-                    'name': getattr(artifact, 'name', 'unknown'),
-                    'dataset': metadata.get('dataset', 'unknown'),
-                    'model': metadata.get('model', 'unknown'),
-                    'threat_model': metadata.get('threat_model', 'unknown'),
-                    'batch_size': metadata.get('batch_size', 'unknown'),
-                    'num_samples': metadata.get('num_samples', 'unknown'),
-                    'size_kb': getattr(artifact, 'size', 0) / 1024 if getattr(artifact, 'size', 0) else 0,
-                    'version': getattr(artifact, 'version', 'unknown'),
-                    'created_at': getattr(artifact, 'created_at', 'unknown')
-                })
-            except Exception as e:
-                print(f"Error processing artifact: {e}")
-                continue
-        
-        return sorted(results, key=lambda x: (x['dataset'], x['threat_model'], x['model']))
-        
-    except Exception as e:
-        print(f"Failed to list artifacts: {e}")
-        return []
+    print(f"[AttackBench] Lower envelope for {dataset}/{threat_model}/{model_name}: "
+          f"{improved} improved, {added} new, {len(envelope)} samples total")
 
-# Mantieni compatibilità con il codice esistente
-get_precompiled_distances = download_precompiled_distances
-
-# CLI se eseguito direttamente
-def main():
-    """CLI entry point for AttackBench W&B Manager."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="AttackBench W&B Manager")
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
-    
-    # Upload command
-    upload_parser = subparsers.add_parser('upload', help='Upload distances')
-    upload_parser.add_argument('file', help='JSON file to upload')
-    upload_parser.add_argument('--dataset', required=True)
-    upload_parser.add_argument('--threat-model', required=True) 
-    upload_parser.add_argument('--model', required=True)
-    upload_parser.add_argument('--batch-size', type=int, required=True)
-    upload_parser.add_argument('--overwrite', action='store_true')
-    
-    # Upload directory command
-    upload_dir_parser = subparsers.add_parser('upload-dir', help='Upload directory')
-    upload_dir_parser.add_argument('directory', help='Directory containing JSON files')
-    upload_dir_parser.add_argument('--dataset', help='Filter by dataset')
-    upload_dir_parser.add_argument('--overwrite', action='store_true')
-    
-    # Download command
-    download_parser = subparsers.add_parser('download', help='Download distances')
-    download_parser.add_argument('--dataset', required=True)
-    download_parser.add_argument('--threat-model', required=True)
-    download_parser.add_argument('--model', required=True) 
-    download_parser.add_argument('--batch-size', type=int, required=True)
-    download_parser.add_argument('--cache-dir', default='./cache')
-    
-    # List command
-    list_parser = subparsers.add_parser('list', help='List available distances')
-    list_parser.add_argument('--dataset', help='Filter by dataset')
-    
-    args = parser.parse_args()
-    
-    if args.command == 'upload':
-        upload_precompiled_distances(
-            args.file, args.dataset, args.threat_model, 
-            args.model, args.batch_size, args.overwrite
+    if not dry_run and (improved or added):
+        upload_optimal_distances(
+            optimal_data={'distances': {threat_model: envelope}},
+            dataset=dataset, threat_model=threat_model, model_name=model_name,
+            overwrite=True,
         )
-    elif args.command == 'upload-dir':
-        upload_directory(args.directory, args.dataset, args.overwrite)
-    elif args.command == 'download':
-        data = download_precompiled_distances(
-            args.dataset, args.threat_model, args.model, 
-            args.batch_size, args.cache_dir
-        )
-        if data:
-            print(f"Downloaded {len(data)} distances")
-    elif args.command == 'list':
-        artifacts = list_available_distances(args.dataset)
-        for art in artifacts:
-            print(f"{art['dataset']}-{art['threat_model']}-{art['model']}-{art['batch_size']} (v{art['version']})")
 
-
-if __name__ == "__main__":
-    main()
+    return {'improved': improved, 'added': added,
+            'n_samples': len(envelope), 'distances': {threat_model: envelope}}

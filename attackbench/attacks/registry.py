@@ -107,8 +107,7 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
 
             # 1) Scan config functions whose threat_model matches directly
             for config_name, config_func in attack_configs[lib_name].items():
-                params = _parse_config_params(config_func)
-                cfg_tm = params.get('threat_model')
+                cfg_tm = config_func().get('threat_model')
 
                 if cfg_tm != threat_model:
                     continue
@@ -154,9 +153,7 @@ def _is_attack_compatible(lib: str, attack: str, threat_model: str) -> bool:
 
     # 2) Check config functions
     for config_name, config_func in attack_configs[lib].items():
-        params = _parse_config_params(config_func)
-        cfg_tm = params.get('threat_model')
-        if cfg_tm != threat_model:
+        if config_func().get('threat_model') != threat_model:
             continue
         # Map config name back to getter name
         if config_name == attack:
@@ -211,9 +208,9 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
     config_func = attack_configs[lib].get(attack)
     getter_func = library_getters[lib][attack]
     
-    # Parse parameters from config
+    # Parameters declared by the config function
     if config_func:
-        params = _parse_config_params(config_func)
+        params = dict(config_func())
     else:
         print(f"Warning: No configuration function found for {lib}_{attack}")
         params = {}
@@ -306,59 +303,3 @@ def _get_smart_defaults(lib: str, attack: str, missing_params: list, threat_mode
             defaults[param_name] = None
     
     return defaults
-
-
-def _parse_config_params(config_func):
-    """Parse parameters from configuration function"""
-    params = {}
-    
-    try:
-        source_lines = inspect.getsourcelines(config_func)[0]
-        
-        for line in source_lines[1:]:  # Skip function definition
-            line = line.strip()
-            
-            # Skip comments and empty lines
-            if not line or line.startswith('#'):
-                continue
-                
-            # Look for variable assignments
-            if '=' in line and not line.startswith('#'):
-                try:
-                    # Split only on first = to handle cases like "x = y = z"
-                    var_name, var_value = line.split('=', 1)
-                    var_name = var_name.strip()
-                    var_value = var_value.strip()
-                    
-                    # Remove inline comments
-                    if '#' in var_value:
-                        var_value = var_value.split('#')[0].strip()
-                    
-                    # Parse different value types
-                    if (var_value.startswith("'") and var_value.endswith("'")) or \
-                       (var_value.startswith('"') and var_value.endswith('"')):
-                        params[var_name] = var_value[1:-1]
-                    elif var_value == 'True':
-                        params[var_name] = True
-                    elif var_value == 'False':
-                        params[var_name] = False
-                    elif var_value == 'None':
-                        params[var_name] = None
-                    else:
-                        try:
-                            if var_value.isdigit():
-                                params[var_name] = int(var_value)
-                            elif '.' in var_value and var_value.replace('.', '').isdigit():
-                                params[var_name] = float(var_value)
-                            elif '/' in var_value:
-                                parts = var_value.split('/')
-                                if len(parts) == 2 and all(p.strip().isdigit() for p in parts):
-                                    params[var_name] = float(parts[0]) / float(parts[1])
-                        except:
-                            continue
-                except:
-                    continue
-    except:
-        pass
-    
-    return params

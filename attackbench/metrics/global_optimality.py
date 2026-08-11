@@ -315,13 +315,6 @@ def compare_attacks_global(
     """
     if len(attack_results_list) != len(attack_names):
         raise ValueError("attack_results_list and attack_names must have same length")
-    
-    # Convert to format expected by create_attack_leaderboard
-    attacks_results_per_model = {}
-    for attack_name, results_per_model in zip(attack_names, attack_results_list):
-        attacks_results_per_model[attack_name] = results_per_model
-    
-    return create_attack_leaderboard(
-        attacks_results_per_model=attacks_results_per_model,
-        threat_model=threat_model
-    )
+
+    return create_attack_leaderboard(dict(zip(attack_names, attack_results_list)),
+                                     threat_model=threat_model)

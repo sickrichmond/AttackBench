@@ -1,12 +1,12 @@
 import hashlib
 import inspect
+import json
 import random
 import traceback
 import warnings
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from pathlib import Path
-import json
-from typing import Dict, Any, Optional, Callable, Union
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # W&B integration for cached distances
-from .wandb.utils import get_precompiled_distances
+from .wandb.manager import download_precompiled_distances
 
 # Max forward+backward propagations per sample. 2000 is the budget used in the
 # AttackBench paper: it is what makes attacks comparable to one another.
@@ -260,7 +260,7 @@ def run_attack(
         key = f"{dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}".lower()
         print(f"[AttackBench] Checking W&B for cached distances: {key}")
 
-        cached_data = get_precompiled_distances(
+        cached_data = download_precompiled_distances(
             dataset=dataset_name,
             threat_model=threat_model,
             model_name=model_name,
@@ -438,9 +438,6 @@ def run_attack(
     # Save raw results if requested
     if save_results or save_adversarial:
         if output_dir:
-            from pathlib import Path
-            import json
-            
             # Simple flat directory structure
             save_dir = Path(output_dir)
             save_dir.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,7 @@
 import os
 import tarfile
+import urllib.request
 
-import requests
 from ....adv_lib_sub import normalize_model
 from torch import nn
 
@@ -24,9 +24,10 @@ def download_model(model: str, dataset: str = 'cifar10') -> None:
     pretrained_config = _pretrained_model_configs[model]
 
     url = f"https://download.huan-zhang.com/models/crown-ibp/models_crown-ibp{pretrained_config['prefix']}.tar.gz"
-    response = requests.get(url, stream=True)
-    file = tarfile.open(fileobj=response.raw, mode="r|gz")
-    file.extractall(path="./models/checkpoints/")
+    print(f'Downloading {url}...')
+    with urllib.request.urlopen(url) as response:
+        with tarfile.open(fileobj=response, mode="r|gz") as archive:
+            archive.extractall(path="./models/checkpoints/")
 
 
 def load_crown_model(model: str, dataset: str = 'cifar10', threat_model: str = 'Linf') -> nn.Module:

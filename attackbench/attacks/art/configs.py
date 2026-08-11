@@ -34,14 +34,16 @@ _norms = {
 
 
 def art_apgd():
-    name = 'apgd'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
-    step_size = 0.1
-    num_steps = 100
-    nb_random_init = 5
-    loss_type = None
+    return dict(
+        name='apgd',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+        step_size=0.1,
+        num_steps=100,
+        nb_random_init=5,
+        loss_type=None,
+    )
 
 
 def get_art_apgd(threat_model: str, epsilon: float, step_size: float, num_steps: int, nb_random_init: int,
@@ -51,13 +53,15 @@ def get_art_apgd(threat_model: str, epsilon: float, step_size: float, num_steps:
 
 
 def art_apgd_minimal():
-    name = 'apgd_minimal'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    step_size = 0.1
-    num_steps = 100
-    nb_random_init = 5
-    loss_type = None
+    return dict(
+        name='apgd_minimal',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        step_size=0.1,
+        num_steps=100,
+        nb_random_init=5,
+        loss_type=None,
+    )
 
 
 def get_art_apgd_minimal(threat_model: str, step_size: float, num_steps: int, nb_random_init: int,
@@ -71,12 +75,14 @@ def get_art_apgd_minimal(threat_model: str, step_size: float, num_steps: int, nb
 
 
 def art_bim():
-    name = 'bim'
-    source = 'art'
-    threat_model = 'linf'
-    epsilon = 0.3
-    step_size = 0.1
-    num_steps = 100
+    return dict(
+        name='bim',
+        source='art',
+        threat_model='linf',
+        epsilon=0.3,
+        step_size=0.1,
+        num_steps=100,
+    )
 
 
 def get_art_bim(epsilon: float, step_size: float, num_steps: int) -> Callable:
@@ -84,11 +90,13 @@ def get_art_bim(epsilon: float, step_size: float, num_steps: int) -> Callable:
 
 
 def art_bim_minimal():
-    name = 'bim_minimal'
-    source = 'art'
-    threat_model = 'linf'
-    step_size = 0.1
-    num_steps = 100
+    return dict(
+        name='bim_minimal',
+        source='art',
+        threat_model='linf',
+        step_size=0.1,
+        num_steps=100,
+    )
 
 
 def get_art_bim_minimal(threat_model: str, step_size: float, num_steps: int,
@@ -100,17 +108,19 @@ def get_art_bim_minimal(threat_model: str, step_size: float, num_steps: int,
 
 
 def art_bb():
-    name = 'bb'
-    source = 'art'
-    threat_model = 'linf'
-    overshoot = 1.1
-    num_steps = 1000
-    step_size = 1e-3
-    lr_decay = 0.5
-    lr_num_decay = 20
-    momentum = 0.8
-    num_binary_search_steps = 10
-    init_size = 100
+    return dict(
+        name='bb',
+        source='art',
+        threat_model='linf',
+        overshoot=1.1,
+        num_steps=1000,
+        step_size=1e-3,
+        lr_decay=0.5,
+        lr_num_decay=20,
+        momentum=0.8,
+        num_binary_search_steps=10,
+        init_size=100,
+    )
 
 
 def get_art_bb(threat_model: str, overshoot: float, num_steps: int, step_size: float, lr_decay: float,
@@ -126,16 +136,18 @@ def get_art_bb(threat_model: str, overshoot: float, num_steps: int, step_size: f
 
 
 def art_cw_l2():
-    name = 'cw_l2'
-    source = 'art'
-    threat_model = 'l2'
-    confidence = 0.0
-    step_size = 0.01
-    num_binary_search_steps = 10
-    num_steps = 1000  # default was 10
-    initial_const = 0.01
-    max_halving = 5
-    max_doubling = 5
+    return dict(
+        name='cw_l2',
+        source='art',
+        threat_model='l2',
+        confidence=0.0,
+        step_size=0.01,
+        num_binary_search_steps=10,
+        num_steps=1000,  # default was 10
+        initial_const=0.01,
+        max_halving=5,
+        max_doubling=5,
+    )
 
 
 def get_art_cw_l2(confidence: float, step_size: float, num_binary_search_steps: int, num_steps: int,
@@ -146,16 +158,18 @@ def get_art_cw_l2(confidence: float, step_size: float, num_binary_search_steps: 
 
 
 def art_cw_linf():
-    name = 'cw_linf'
-    source = 'art'
-    threat_model = 'linf'
-    confidence = 0.0
-    step_size = 0.01
-    num_steps = 10
-    decrease_factor = 0.9
-    initial_const = 0.01
-    largest_const = 20.0
-    const_factor = 2.0
+    return dict(
+        name='cw_linf',
+        source='art',
+        threat_model='linf',
+        confidence=0.0,
+        step_size=0.01,
+        num_steps=10,
+        decrease_factor=0.9,
+        initial_const=0.01,
+        largest_const=20.0,
+        const_factor=2.0,
+    )
 
 
 def get_art_cw_linf(confidence: float, step_size: float, num_steps: int, decrease_factor: float,
@@ -166,12 +180,14 @@ def get_art_cw_linf(confidence: float, step_size: float, num_steps: int, decreas
 
 
 def art_deepfool():
-    name = 'deepfool'
-    source = 'art'
-    threat_model = 'l2'
-    num_steps = 100
-    epsilon = 1e-6
-    nb_grads = 10
+    return dict(
+        name='deepfool',
+        source='art',
+        threat_model='l2',
+        num_steps=100,
+        epsilon=1e-6,
+        nb_grads=10,
+    )
 
 
 def get_art_deepfool(num_steps: int, epsilon: float, nb_grads: int) -> Callable:
@@ -179,16 +195,18 @@ def get_art_deepfool(num_steps: int, epsilon: float, nb_grads: int) -> Callable:
 
 
 def art_ead():
-    name = 'ead'
-    source = 'art'
-    threat_model = 'l1'
-    confidence = 0.0
-    step_size = 1e-2
-    num_binary_search_steps = 9
-    num_steps = 100
-    beta = 1e-3
-    initial_const = 1e-3
-    decision_rule = 'EN'
+    return dict(
+        name='ead',
+        source='art',
+        threat_model='l1',
+        confidence=0.0,
+        step_size=1e-2,
+        num_binary_search_steps=9,
+        num_steps=100,
+        beta=1e-3,
+        initial_const=1e-3,
+        decision_rule='EN',
+    )
 
 
 def get_art_ead(confidence: float, step_size: float, num_binary_search_steps: int, num_steps: int, beta: float,
@@ -199,12 +217,14 @@ def get_art_ead(confidence: float, step_size: float, num_binary_search_steps: in
 
 
 def art_fgm():
-    name = 'fgm'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
-    step_size = 0.1
-    num_random_init = 0
+    return dict(
+        name='fgm',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+        step_size=0.1,
+        num_random_init=0,
+    )
 
 
 def get_art_fgm(threat_model: str, epsilon: float, step_size: float, num_random_init: int) -> Callable:
@@ -213,11 +233,13 @@ def get_art_fgm(threat_model: str, epsilon: float, step_size: float, num_random_
 
 
 def art_fgm_minimal():
-    name = 'fgm_minimal'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    step_size = 0.1
-    num_random_init = 0
+    return dict(
+        name='fgm_minimal',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        step_size=0.1,
+        num_random_init=0,
+    )
 
 
 def get_art_fgm_minimal(threat_model: str, step_size: float, num_random_init: int,
@@ -229,11 +251,13 @@ def get_art_fgm_minimal(threat_model: str, step_size: float, num_random_init: in
 
 
 def art_jsma():
-    name = 'jsma'
-    source = 'art'
-    threat_model = 'l0'
-    theta = 0.1
-    gamma = 1.0
+    return dict(
+        name='jsma',
+        source='art',
+        threat_model='l0',
+        theta=0.1,
+        gamma=1.0,
+    )
 
 
 def get_art_jsma(theta: float, gamma: float) -> Callable:
@@ -241,14 +265,16 @@ def get_art_jsma(theta: float, gamma: float) -> Callable:
 
 
 def art_pgd():
-    name = 'pgd'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    epsilon = 0.3
-    step_size = 0.1
-    num_steps = 40  # default was 100. We decided to keep the original num_steps reported in the paper
-    num_random_init = 0
-    random_eps = False
+    return dict(
+        name='pgd',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        epsilon=0.3,
+        step_size=0.1,
+        num_steps=40,  # default was 100. We decided to keep the original num_steps reported in the paper
+        num_random_init=0,
+        random_eps=False,
+    )
 
 
 def get_art_pgd(threat_model: str, epsilon: float, step_size: float, num_steps: int, num_random_init: int,
@@ -258,13 +284,15 @@ def get_art_pgd(threat_model: str, epsilon: float, step_size: float, num_steps: 
 
 
 def art_pgd_minimal():
-    name = 'pgd_minimal'
-    source = 'art'
-    threat_model = 'linf'  # available: 'l1', 'l2', 'linf'
-    step_size = 0.1
-    num_steps = 40  # default was 100. We decided to keep the original num_steps reported in the paper
-    num_random_init = 0
-    random_eps = False
+    return dict(
+        name='pgd_minimal',
+        source='art',
+        threat_model='linf',  # available: 'l1', 'l2', 'linf'
+        step_size=0.1,
+        num_steps=40,  # default was 100. We decided to keep the original num_steps reported in the paper
+        num_random_init=0,
+        random_eps=False,
+    )
 
 
 def get_art_pgd_minimal(threat_model: str, step_size: float, num_steps: int, num_random_init: int, random_eps: bool,

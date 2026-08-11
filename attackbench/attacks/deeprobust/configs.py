@@ -15,15 +15,17 @@ _wrapper = deeprobust_wrapper
 
 
 def dr_cw_l2():
-    name = 'cw_l2'
-    source = 'deeprobust'
-    threat_model = 'l2'
-    confidence = 0.0001
-    num_binary_search_steps = 5
-    num_steps = 100  # default was 1000
-    initial_const = 0.01
-    step_size = 0.00001
-    abort_early = True
+    return dict(
+        name='cw_l2',
+        source='deeprobust',
+        threat_model='l2',
+        confidence=0.0001,
+        num_binary_search_steps=5,
+        num_steps=100,  # default was 1000
+        initial_const=0.01,
+        step_size=0.00001,
+        abort_early=True,
+    )
 
 
 def get_dr_cw_l2(confidence: float, num_binary_search_steps: int, num_steps: int, initial_const: float,
@@ -41,12 +43,14 @@ def get_dr_cw_l2(confidence: float, num_binary_search_steps: int, num_steps: int
 
 
 def dr_deepfool():
-    name = 'deepfool'
-    source = 'deeprobust'
-    threat_model = 'l2'
-    overshoot = 0.02
-    num_steps = 50
-    num_classes = 10
+    return dict(
+        name='deepfool',
+        source='deeprobust',
+        threat_model='l2',
+        overshoot=0.02,
+        num_steps=50,
+        num_classes=10,
+    )
 
 
 def get_dr_deepfool(overshoot: float, num_steps: int, num_classes: int) -> Dict:
@@ -56,12 +60,14 @@ def get_dr_deepfool(overshoot: float, num_steps: int, num_classes: int) -> Dict:
 
 
 def dr_pgd():
-    name = 'pgd'
-    source = 'deeprobust'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    epsilon = 0.3
-    num_steps = 40
-    step_size = 0.01
+    return dict(
+        name='pgd',
+        source='deeprobust',
+        threat_model='linf',  # available: 'l2', 'linf'
+        epsilon=0.3,
+        num_steps=40,
+        step_size=0.01,
+    )
 
 
 def get_dr_pgd(threat_model: str, epsilon: float, num_steps: int, step_size: float) -> Dict:
@@ -70,11 +76,13 @@ def get_dr_pgd(threat_model: str, epsilon: float, num_steps: int, step_size: flo
 
 
 def dr_pgd_minimal():
-    name = 'pgd_minimal'
-    source = 'deeprobust'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    num_steps = 40
-    step_size = 0.01
+    return dict(
+        name='pgd_minimal',
+        source='deeprobust',
+        threat_model='linf',  # available: 'l2', 'linf'
+        num_steps=40,
+        step_size=0.01,
+    )
 
 
 def get_dr_pgd_minimal(threat_model: str, num_steps: int, step_size: float,
@@ -87,10 +95,12 @@ def get_dr_pgd_minimal(threat_model: str, num_steps: int, step_size: float,
 
 
 def dr_fgm():
-    name = 'fgm'
-    source = 'deeprobust'
-    threat_model = 'linf'  # available: 'l2', 'linf'
-    epsilon = 0.2
+    return dict(
+        name='fgm',
+        source='deeprobust',
+        threat_model='linf',  # available: 'l2', 'linf'
+        epsilon=0.2,
+    )
 
 
 def get_dr_fgm(threat_model: str, epsilon: float) -> Dict:
@@ -99,9 +109,11 @@ def get_dr_fgm(threat_model: str, epsilon: float) -> Dict:
 
 
 def dr_fgm_minimal():
-    name = 'fgm_minimal'
-    source = 'deeprobust'
-    threat_model = 'linf'  # available: 'l2', 'linf'
+    return dict(
+        name='fgm_minimal',
+        source='deeprobust',
+        threat_model='linf',  # available: 'l2', 'linf'
+    )
 
 
 def get_dr_fgm_minimal(threat_model: str,

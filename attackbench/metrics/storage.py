@@ -1,49 +1,60 @@
 """
-Storage utilities with W&B integration for precompiled distances.
-Now uses the new wandb_manager module.
+Local storage of precompiled distances, in the layout expected by the W&B artifacts.
 """
 import json
-import pickle
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
-import torch
 
 
 def save_precompiled_distances(
-    attack_data: Dict[str, Any], 
-    dataset: str,
-    threat_model: str, 
-    model_name: str,
-    attack_name: str,
-    attack_lib: str,
+    attack_data: Dict[str, Any],
     output_dir: str = './temp_upload',
-    format: str = 'json'
-) -> tuple[str, Dict[str, Any]]:
+    dataset: Optional[str] = None,
+    threat_model: Optional[str] = None,
+    model_name: Optional[str] = None,
+    attack_name: Optional[str] = None,
+    attack_lib: Optional[str] = None,
+) -> Tuple[str, Dict[str, Any]]:
     """
-    Save precompiled distances to local file with automatic naming.
-    
-    Args:
-        attack_data: Raw attack results dict
-        dataset: Dataset name (e.g., 'cifar10')
-        threat_model: Threat model (e.g., 'linf')
-        model_name: Model name (e.g., 'Standard')
-        attack_name: Attack name (e.g., 'pgd')
-        attack_lib: Library implementing the attack (e.g., 'foolbox', 'torchattacks')
-        output_dir: Output directory
-        format: Output format ('json')
-    
+    Save precompiled distances to a local JSON file with the canonical artifact name.
+
+    Metadata is taken from attack_data['metadata'] (populated by run_attack); pass any
+    of the fields explicitly to override it.
+
     Returns:
-        tuple: (file_path, metadata_dict) for easy upload
+        tuple: (file_path, metadata_dict) — ready for upload_precompiled_distances()
     """
-    
+    meta = attack_data.get('metadata', {})
+    dataset = dataset or meta.get('dataset')
+    threat_model = threat_model or meta.get('threat_model')
+    model_name = model_name or meta.get('model_name')
+    attack_name = attack_name or meta.get('attack_name')
+    attack_lib = attack_lib or meta.get('attack_lib')
+
+    missing = [n for n, v in [('dataset', dataset), ('threat_model', threat_model),
+                              ('model_name', model_name), ('attack_name', attack_name),
+                              ('attack_lib', attack_lib)] if not v]
+    if missing:
+        raise ValueError(f"Missing metadata {missing}: pass it explicitly or run the attack "
+                         f"through run_attack(), which records it in results['metadata'].")
+
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Prepare data for saving (include basic metrics now computed here)
+
+    # Include the basic metrics (ASR, accuracy) alongside the raw data
     from .distances import compute_basic_metrics
-    basic_metrics = compute_basic_metrics(attack_data)
-    
+
+    n_samples = len(attack_data.get('adv_success', []))
+    metadata = {
+        'dataset': dataset,
+        'model_name': model_name,
+        'attack_name': attack_name,
+        'attack_lib': attack_lib,
+        'threat_model': threat_model,
+        'n_samples': n_samples,
+    }
     save_data = {
         'distances': attack_data.get('distances', {}),
         'final_distances': attack_data.get('final_distances', {}),
@@ -52,41 +63,27 @@ def save_precompiled_distances(
         'correct': attack_data.get('correct', []),
         'hashes': attack_data.get('hashes', []),
         'threat_model': threat_model,
-        # Add computed metrics
-        **basic_metrics
+        'metadata': metadata,
+        **compute_basic_metrics(attack_data),
     }
-    
-    # Add metadata
-    n_samples = len(attack_data.get('adv_success', []))
-    metadata = {
-        'dataset': dataset,
-        'model_name': model_name,
-        'attack_name': attack_name,
-        'attack_lib': attack_lib,
-        'threat_model': threat_model,
-        'n_samples': n_samples
-    }
-    save_data['metadata'] = metadata
-    
-    # Create filename: dataset-threat_model-model-attack-lib-nsamples.json
+
+    # Filename: dataset-threat_model-model-attack-lib-nsamples.json
     filename = f"{dataset}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}.json"
     file_path = output_path / filename
-    
-    # Convert numpy arrays to lists for JSON
-    json_data = {}
-    for key, value in save_data.items():
-        if isinstance(value, np.ndarray):
-            json_data[key] = value.tolist()
-        elif isinstance(value, dict):
-            json_data[key] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) 
-                            for k, v in value.items()}
-        else:
-            json_data[key] = value
-    
+
     with open(file_path, 'w') as f:
-        json.dump(json_data, f, indent=2)
-    
+        json.dump(save_data, f, indent=2, default=_json_default)
+
     return str(file_path), metadata
+
+
+def _json_default(value):
+    """numpy scalars/arrays are not JSON serializable on their own."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    raise TypeError(f'Object of type {type(value).__name__} is not JSON serializable')
 
 
 def load_precompiled_distances(file_path: str) -> Optional[Dict[str, Any]]:
@@ -94,48 +91,14 @@ def load_precompiled_distances(file_path: str) -> Optional[Dict[str, Any]]:
     path = Path(file_path)
     if not path.exists():
         return None
-    
+
     try:
         if path.suffix == '.npz':
             data = np.load(path, allow_pickle=True)
-            result = {}
-            for key in data.files:
-                result[key] = data[key].item() if data[key].ndim == 0 else data[key]
-            return result
-        else:
-            with open(path, 'r') as f:
-                return json.load(f)
+            return {key: (data[key].item() if data[key].ndim == 0 else data[key])
+                    for key in data.files}
+        with open(path, 'r') as f:
+            return json.load(f)
     except Exception as e:
         print(f"Error loading {file_path}: {e}")
         return None
-
-
-def load_best_distances_with_wandb(dataset: str, threat_model: str, model_name: str, 
-                                  batch_size: int, cache_dir: str) -> Dict[str, Any]:
-    """
-    Load best distances using new W&B manager.
-    """
-    try:
-        # Use the new modular function
-        from ..wandb.manager import download_precompiled_distances
-        
-        data = download_precompiled_distances(
-            dataset=dataset,
-            threat_model=threat_model,
-            model_name=model_name,
-            batch_size=batch_size,
-            cache_dir=cache_dir
-        )
-        
-        return data or {}
-        
-    except ImportError:
-        print("W&B manager not available, trying legacy fallback")
-        # Fallback al vecchio sistema se necessario
-        try:
-            from ..wandb.utils import get_precompiled_distances
-            return get_precompiled_distances(dataset, threat_model, model_name, batch_size, cache_dir) or {}
-        except ImportError:
-            print("No W&B integration available")
-    
-    return {}

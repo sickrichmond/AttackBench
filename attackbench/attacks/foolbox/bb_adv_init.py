@@ -1,8 +1,7 @@
 from foolbox.attacks import L0BrendelBethgeAttack, L1BrendelBethgeAttack, L2BrendelBethgeAttack, LinfinityBrendelBethgeAttack
-from torch import Tensor, nn
+from torch import Tensor
 from typing import Callable
 from foolbox.attacks.dataset_attack import DatasetAttack
-import foolbox as fb
 from foolbox import PyTorchModel
 
 _bb_attacks = {

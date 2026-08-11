@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attackbenchlib"
-version = "1.0.9"
+version = "2.0.0"
 description = "A Python package for benchmarking adversarial attacks and defenses."
 authors = [
     { name = "Antonio Cinà", email="antonio.cina@unige.it"},
@@ -26,12 +26,8 @@ dependencies = [
     # This prevents downgrading to CPU-only versions or breaking GPU support.
     "torch>=2.4",
     "torchvision>=0.19",
-    "matplotlib>=3.5.1",
-    "pandas>=1.4.0",
-    "scipy>=1.8.0",
     "numpy>=1.21.0",  # Removed upper bound <1.27.0 to support Numpy 2.0+ on modern environments
     "tqdm>=4.56.2",
-    "wget>=3.2",
     "wandb>=0.15.0",
 ]
 
@@ -42,9 +38,14 @@ attacks = [
     "foolbox",
     "torchattacks",
     "cleverhans==4.0.0",
-    # Note: 'adv-lib' is removed as it is not on PyPI. Users must install it manually via git.
     # Note: robustbench is NOT needed here — attacks don't depend on it.
     #       It belongs in [models] for loading pretrained robust models.
+]
+
+# AdvLib is not on PyPI, but its implementations are among the top-ranked ones in the
+# AttackBench paper — installing without it leaves you with the weaker re-implementations.
+adv_lib = [
+    "adv-lib @ git+https://github.com/jeromerony/adversarial-library",
 ]
 
 # DeepRobust attacks (requires scipy<1.8.0, incompatible with Python 3.10+)
@@ -55,42 +56,23 @@ deeprobust = [
 ]
 
 # Models & datasets — always needed together to run attacks
+# (timm/transformers/pretrainedmodels are pulled in by robustbench itself when a model
+#  needs them; AttackBench does not import them.)
 models = [
     "pillow>=8.0.0",
-    "requests>=2.25.0",
-    "timm>=0.9.0",
-    "transformers>=4.20.0",
     "robustbench>=1.1",
     "pyautoattack>=0.2.0",  # Required by robustbench (provides the 'autoattack' module)
-    "pretrainedmodels>=0.7.4",
 ]
 
-# Metrics package - enables results analysis and evaluation
-metrics = [
-    "scikit-learn>=1.0.0",
-    "seaborn>=0.11.0",
-    "plotly>=5.0.0",
-    "tabulate>=0.9.0",
-]
+# Metrics package - enables results analysis and evaluation.
+# The analysis code only needs numpy, which is a core dependency; the extra is kept so
+# `pip install attackbenchlib[metrics]` stays valid.
+metrics = []
 
-# Complete package - includes all optional dependencies (except deeprobust)
+# Complete package - includes all optional dependencies (except deeprobust and adv_lib,
+# which needs a git checkout)
 all = [
-    "adversarial-robustness-toolbox",
-    "foolbox",
-    "torchattacks",
-    "cleverhans==4.0.0",
-    "robustbench>=1.1",
-    "pyautoattack>=0.2.0",
-    "timm>=0.9.0",
-    "transformers>=4.20.0",
-    "pretrainedmodels>=0.7.4",
-    "scikit-learn>=1.0.0",
-    "seaborn>=0.11.0",
-    "plotly>=5.0.0",
-    "tabulate>=0.9.0",
-    "pillow>=8.0.0",
-    "requests>=2.25.0",
-    # Note: 'adv-lib' is excluded here too.
+    "attackbenchlib[attacks,models,metrics]",
 ]
 
 # Development package
@@ -113,6 +95,6 @@ docs = [
 where = ["."]
 include = ["attackbench*"]
 
-[project.scripts]
-run_attack = "attackbench.run:main"
-wandb_manager = "attackbench.wandb.manager:main"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

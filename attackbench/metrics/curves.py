@@ -3,7 +3,7 @@ Robust accuracy curves and evaluation metrics.
 Ported from analysis/plot_distances.py logic
 """
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Optional
 
 # NumPy 2.0+ compatibility: trapz was renamed to trapezoid
 try:

@@ -21,16 +21,18 @@ _norms = {
 
 
 def ch_cw_l2():
-    name = 'cw_l2'
-    source = 'cleverhans'
-    threat_model = 'l2'
-    lr = 5e-03
-    confidence = 0
-    clip_min = 0
-    clip_max = 1
-    initial_const = 1e-02
-    binary_search_steps = 5
-    num_steps = 100  # 1000
+    return dict(
+        name='cw_l2',
+        source='cleverhans',
+        threat_model='l2',
+        lr=5e-03,
+        confidence=0,
+        clip_min=0,
+        clip_max=1,
+        initial_const=1e-02,
+        binary_search_steps=5,
+        num_steps=100,  # 1000
+    )
 
 
 def get_ch_cw_l2(lr: float, confidence: float, clip_min: float, clip_max: float, initial_const: float,
@@ -40,10 +42,12 @@ def get_ch_cw_l2(lr: float, confidence: float, clip_min: float, clip_max: float,
 
 
 def ch_fgm():
-    name = 'fgm'
-    source = 'cleverhans'
-    threat_model = 'l2'  # available: l1, l2, linf
-    eps = 0.3
+    return dict(
+        name='fgm',
+        source='cleverhans',
+        threat_model='l2',  # available: l1, l2, linf
+        eps=0.3,
+    )
 
 
 def get_ch_fgm(threat_model: str, eps: float) -> Callable:
@@ -51,9 +55,11 @@ def get_ch_fgm(threat_model: str, eps: float) -> Callable:
 
 
 def ch_fgm_minimal():
-    name = 'fgm_minimal'
-    source = 'cleverhans'
-    threat_model = 'linf'  # available: l1, l2, linf
+    return dict(
+        name='fgm_minimal',
+        source='cleverhans',
+        threat_model='linf',  # available: l1, l2, linf
+    )
 
 
 def get_ch_fgm_minimal(threat_model: str,
@@ -66,16 +72,18 @@ def get_ch_fgm_minimal(threat_model: str,
 
 
 def ch_hsja():
-    name = 'hsja'
-    source = 'cleverhans'
-    threat_model = 'l2'  # available: l2, linf
-    num_steps = 64
-    initial_num_evals = 100
-    max_num_evals = 10000
-    stepsize_search = "geometric_progression"
-    gamma = 1.0
-    constraint = 2
-    batch_size = 128
+    return dict(
+        name='hsja',
+        source='cleverhans',
+        threat_model='l2',  # available: l2, linf
+        num_steps=64,
+        initial_num_evals=100,
+        max_num_evals=10000,
+        stepsize_search="geometric_progression",
+        gamma=1.0,
+        constraint=2,
+        batch_size=128,
+    )
 
 
 def get_ch_hsja(threat_model: str, num_steps: int, initial_num_evals: int, max_num_evals: int, stepsize_search: int,
@@ -86,16 +94,18 @@ def get_ch_hsja(threat_model: str, num_steps: int, initial_num_evals: int, max_n
 
 
 def ch_spsa():
-    name = 'spsa'
-    source = 'cleverhans'
-    num_steps = 100
-    threat_model = 'linf'
-    eps = 0.3
-    early_stop_loss_threshold = None
-    lr = 0.01
-    delta = 0.01
-    spsa_samples = 128
-    spsa_iters = 1
+    return dict(
+        name='spsa',
+        source='cleverhans',
+        num_steps=100,
+        threat_model='linf',
+        eps=0.3,
+        early_stop_loss_threshold=None,
+        lr=0.01,
+        delta=0.01,
+        spsa_samples=128,
+        spsa_iters=1,
+    )
 
 
 def get_ch_spsa(threat_model: str, num_steps: int, eps: float, early_stop_loss_threshold: float, lr: float,
@@ -106,12 +116,14 @@ def get_ch_spsa(threat_model: str, num_steps: int, eps: float, early_stop_loss_t
 
 
 def ch_pgd():
-    name = 'pgd'
-    source = 'cleverhans'
-    threat_model = 'l2'  # available: np.inf, 1 or 2.
-    eps = 10.0
-    eps_iter = 1.0
-    num_steps = 20
+    return dict(
+        name='pgd',
+        source='cleverhans',
+        threat_model='l2',  # available: np.inf, 1 or 2.
+        eps=10.0,
+        eps_iter=1.0,
+        num_steps=20,
+    )
 
 
 def get_ch_pgd(threat_model: str, eps: float, eps_iter: float, num_steps: int) -> Callable:
@@ -120,11 +132,13 @@ def get_ch_pgd(threat_model: str, eps: float, eps_iter: float, num_steps: int) -
 
 
 def ch_pgd_minimal():
-    name = 'pgd_minimal'
-    source = 'cleverhans'
-    threat_model = 'linf'  # available: np.inf, 1 or 2.
-    eps_iter = 1.0
-    num_steps = 40 # default was 20
+    return dict(
+        name='pgd_minimal',
+        source='cleverhans',
+        threat_model='linf',  # available: np.inf, 1 or 2.
+        eps_iter=1.0,
+        num_steps=40,  # default was 20
+    )
 
 
 def get_ch_pgd_minimal(threat_model: str, eps_iter: float, num_steps: int,

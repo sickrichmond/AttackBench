@@ -167,8 +167,8 @@ def get_stats(
     if save_precompiled and output_dir:
         try:
             from .storage import save_precompiled_distances
-            saved_path = save_precompiled_distances(
-                attack_results, threat_model, output_dir,
+            saved_path, _ = save_precompiled_distances(
+                attack_results, output_dir=output_dir, threat_model=threat_model,
                 model_name=model_name, attack_name=attack_name
             )
             stats['precompiled_path'] = saved_path

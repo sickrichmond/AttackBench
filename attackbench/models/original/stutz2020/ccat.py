@@ -2,7 +2,7 @@
 Code adapted from: https://github.com/davidstutz/confidence-calibrated-adversarial-training
 """
 
-import wget
+import urllib.request
 import zipfile
 import os
 import torch
@@ -17,7 +17,8 @@ def download_model(dataset='cifar10', model='stutz_2020'):
     model_name = _pretrained_model_names[model]
 
     url = 'https://datasets.d2.mpi-inf.mpg.de/arxiv2019-ccat/%s_%s.zip' % (dataset, model_name)
-    filename = wget.download(url)
+    print(f'Downloading {url}...')
+    filename, _ = urllib.request.urlretrieve(url)
 
     # Directory to extract the model to.
     model_dir = './models/checkpoints/'

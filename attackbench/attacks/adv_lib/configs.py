@@ -41,30 +41,36 @@ _norms = {
 
 
 def adv_lib_alma_l1():
-    name = 'alma'
-    source = 'adv_lib'
-    threat_model = 'l1'
-    num_steps = 1000
-    alpha = 0.9
-    init_lr_distance = 0.5
+    return dict(
+        name='alma',
+        source='adv_lib',
+        threat_model='l1',
+        num_steps=1000,
+        alpha=0.9,
+        init_lr_distance=0.5,
+    )
 
 
 def adv_lib_alma_l2():
-    name = 'alma'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    num_steps = 1000
-    alpha = 0.9
-    init_lr_distance = 0.1
+    return dict(
+        name='alma',
+        source='adv_lib',
+        threat_model='l2',
+        num_steps=1000,
+        alpha=0.9,
+        init_lr_distance=0.1,
+    )
 
 
 def adv_lib_alma_linf():
-    name = 'alma'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 1000
-    alpha = 0.9
-    init_lr_distance = 0.01
+    return dict(
+        name='alma',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=1000,
+        alpha=0.9,
+        init_lr_distance=0.01,
+    )
 
 
 def get_adv_lib_alma(threat_model: str, num_steps: int, alpha: float, init_lr_distance: float) -> Callable:
@@ -72,31 +78,35 @@ def get_adv_lib_alma(threat_model: str, num_steps: int, alpha: float, init_lr_di
 
 
 def adv_lib_apgd():
-    name = 'apgd'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    epsilon = 4 / 255
-    targeted = False  # use a targeted objective for the untargeted attack
-    num_steps = 100
-    num_restarts = 1
-    loss_function = 'dlr'
-    rho = 0.75
-    use_large_reps = False
-    use_rs = True
+    return dict(
+        name='apgd',
+        source='adv_lib',
+        threat_model='linf',
+        epsilon=4 / 255,
+        targeted=False,  # use a targeted objective for the untargeted attack
+        num_steps=100,
+        num_restarts=1,
+        loss_function='dlr',
+        rho=0.75,
+        use_large_reps=False,
+        use_rs=True,
+    )
 
 
 def adv_lib_apgd_l1():
-    name = 'apgd'
-    source = 'adv_lib'
-    threat_model = 'l1'
-    epsilon = 10
-    targeted = False  # use a targeted objective for the untargeted attack
-    num_steps = 100
-    num_restarts = 1
-    loss_function = 'dlr'
-    rho = 0.75
-    use_large_reps = True
-    use_rs = True
+    return dict(
+        name='apgd',
+        source='adv_lib',
+        threat_model='l1',
+        epsilon=10,
+        targeted=False,  # use a targeted objective for the untargeted attack
+        num_steps=100,
+        num_restarts=1,
+        loss_function='dlr',
+        rho=0.75,
+        use_large_reps=True,
+        use_rs=True,
+    )
 
 
 def get_adv_lib_apgd(threat_model: str, epsilon: float, targeted: bool, num_steps: int, num_restarts: int,
@@ -107,15 +117,17 @@ def get_adv_lib_apgd(threat_model: str, epsilon: float, targeted: bool, num_step
 
 
 def adv_lib_apgd_minimal():
-    name = 'apgd_minimal'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100
-    num_restarts = 1
-    loss_function = 'dlr'
-    rho = 0.75
-    use_large_reps = False  # use True for l1 variant
-    use_rs = True
+    return dict(
+        name='apgd_minimal',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,
+        num_restarts=1,
+        loss_function='dlr',
+        rho=0.75,
+        use_large_reps=False,  # use True for l1 variant
+        use_rs=True,
+    )
 
 
 def get_adv_lib_apgd_minimal(threat_model: str, num_steps: int, num_restarts: int, loss_function: str, rho: float,
@@ -130,15 +142,17 @@ def get_adv_lib_apgd_minimal(threat_model: str, num_steps: int, num_restarts: in
 
 
 def adv_lib_apgd_t_minimal():
-    name = 'apgd_t_minimal'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100
-    num_restarts = 1
-    loss_function = 'dlr'
-    rho = 0.75
-    use_large_reps = False
-    use_rs = True
+    return dict(
+        name='apgd_t_minimal',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,
+        num_restarts=1,
+        loss_function='dlr',
+        rho=0.75,
+        use_large_reps=False,
+        use_rs=True,
+    )
 
 
 def get_adv_lib_apgd_t_minimal(threat_model: str, num_steps: int, num_restarts: int, loss_function: str,
@@ -154,15 +168,17 @@ def get_adv_lib_apgd_t_minimal(threat_model: str, num_steps: int, num_restarts: 
 
 
 def adv_lib_cw_l2():
-    name = 'cw_l2'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    confidence = 0
-    step_size = 0.01
-    initial_const = 0.001
-    num_binary_search_steps = 9
-    num_steps = 1000  # default was 10000
-    abort_early = True
+    return dict(
+        name='cw_l2',
+        source='adv_lib',
+        threat_model='l2',
+        confidence=0,
+        step_size=0.01,
+        initial_const=0.001,
+        num_binary_search_steps=9,
+        num_steps=1000,  # default was 10000
+        abort_early=True,
+    )
 
 
 def get_adv_lib_cw_l2(confidence: float, step_size: float, initial_const: float, num_binary_search_steps: int,
@@ -172,17 +188,19 @@ def get_adv_lib_cw_l2(confidence: float, step_size: float, initial_const: float,
 
 
 def adv_lib_cw_linf():
-    name = 'cw_linf'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    step_size = 0.01
-    num_steps = 1000
-    initial_const = 1e-5
-    largest_const = 2e+1
-    const_factor = 2
-    reduce_const = False
-    decrease_factor = 0.9
-    abort_early = True
+    return dict(
+        name='cw_linf',
+        source='adv_lib',
+        threat_model='linf',
+        step_size=0.01,
+        num_steps=1000,
+        initial_const=1e-5,
+        largest_const=2e+1,
+        const_factor=2,
+        reduce_const=False,
+        decrease_factor=0.9,
+        abort_early=True,
+    )
 
 
 def get_adv_lib_cw_linf(step_size: float, num_steps: int, initial_const: float, largest_const: float,
@@ -193,13 +211,15 @@ def get_adv_lib_cw_linf(step_size: float, num_steps: int, initial_const: float, 
 
 
 def adv_lib_ddn():
-    name = 'ddn'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    num_steps = 1000
-    init_norm = 1
-    gamma = 0.05
-    levels = 255
+    return dict(
+        name='ddn',
+        source='adv_lib',
+        threat_model='l2',
+        num_steps=1000,
+        init_norm=1,
+        gamma=0.05,
+        levels=255,
+    )
 
 
 def get_adv_lib_ddn(num_steps: int, gamma: float, init_norm: float, levels: Optional[int] = None) -> Callable:
@@ -207,13 +227,15 @@ def get_adv_lib_ddn(num_steps: int, gamma: float, init_norm: float, levels: Opti
 
 
 def adv_lib_ddn_NQ():
-    name = 'ddn_NQ'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    num_steps = 1000
-    init_norm = 1
-    gamma = 0.05
-    levels = None
+    return dict(
+        name='ddn_NQ',
+        source='adv_lib',
+        threat_model='l2',
+        num_steps=1000,
+        init_norm=1,
+        gamma=0.05,
+        levels=None,
+    )
 
 
 def get_adv_lib_ddn_NQ(num_steps: int, gamma: float, init_norm: float, levels: Optional[int] = None) -> Callable:
@@ -221,16 +243,18 @@ def get_adv_lib_ddn_NQ(num_steps: int, gamma: float, init_norm: float, levels: O
 
 
 def adv_lib_fab():
-    name = 'fab'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100
-    epsilon = None
-    alpha_max = 0.1
-    beta = 0.9
-    eta = 1.05
-    num_restarts = None
-    targeted_restarts = False
+    return dict(
+        name='fab',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,
+        epsilon=None,
+        alpha_max=0.1,
+        beta=0.9,
+        eta=1.05,
+        num_restarts=None,
+        targeted_restarts=False,
+    )
 
 
 def get_adv_lib_fab(threat_model: str, num_steps: int, epsilon: Optional[float], alpha_max: float, beta: float,
@@ -240,21 +264,25 @@ def get_adv_lib_fab(threat_model: str, num_steps: int, epsilon: Optional[float],
 
 
 def adv_lib_fmn():
-    name = 'fmn'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    num_steps = 1000
-    max_stepsize = 1
-    gamma = 0.05
+    return dict(
+        name='fmn',
+        source='adv_lib',
+        threat_model='l2',
+        num_steps=1000,
+        max_stepsize=1,
+        gamma=0.05,
+    )
 
 
 def adv_lib_fmn_linf():
-    name = 'fmn'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 1000
-    max_stepsize = 10
-    gamma = 0.05
+    return dict(
+        name='fmn',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=1000,
+        max_stepsize=10,
+        gamma=0.05,
+    )
 
 
 def get_adv_lib_fmn(threat_model: str, num_steps: int, max_stepsize: float, gamma: float) -> Callable:
@@ -262,18 +290,20 @@ def get_adv_lib_fmn(threat_model: str, num_steps: int, max_stepsize: float, gamm
 
 
 def adv_lib_pdgd():
-    name = 'pdgd'
-    source = 'adv_lib'
-    threat_model = 'l2'
-    num_steps = 500
-    random_init = 0
-    primal_lr = 0.1
-    primal_lr_decrease = 0.01
-    dual_ratio_init = 0.01
-    dual_lr = 0.1
-    dual_lr_decrease = 0.1
-    dual_ema = 0.9
-    dual_min_ratio = 1e-6
+    return dict(
+        name='pdgd',
+        source='adv_lib',
+        threat_model='l2',
+        num_steps=500,
+        random_init=0,
+        primal_lr=0.1,
+        primal_lr_decrease=0.01,
+        dual_ratio_init=0.01,
+        dual_lr=0.1,
+        dual_lr_decrease=0.1,
+        dual_ema=0.9,
+        dual_min_ratio=1e-6,
+    )
 
 
 def get_adv_lib_pdgd(num_steps: int, random_init: float, primal_lr: float, primal_lr_decrease: float,
@@ -285,39 +315,43 @@ def get_adv_lib_pdgd(num_steps: int, random_init: float, primal_lr: float, prima
 
 
 def adv_lib_pdpgd():
-    name = 'pdpgd'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 500
-    random_init = 0
-    proximal_operator = None
-    primal_lr = 0.1
-    primal_lr_decrease = 0.01
-    dual_ratio_init = 0.01
-    dual_lr = 0.1
-    dual_lr_decrease = 0.1
-    dual_ema = 0.9
-    dual_min_ratio = 1e-6
-    proximal_steps = 5
-    epsilon_threshold = 1e-2
+    return dict(
+        name='pdpgd',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=500,
+        random_init=0,
+        proximal_operator=None,
+        primal_lr=0.1,
+        primal_lr_decrease=0.01,
+        dual_ratio_init=0.01,
+        dual_lr=0.1,
+        dual_lr_decrease=0.1,
+        dual_ema=0.9,
+        dual_min_ratio=1e-6,
+        proximal_steps=5,
+        epsilon_threshold=1e-2,
+    )
 
 
 def adv_lib_pdpgd_l0():
-    name = 'pdpgd'
-    source = 'adv_lib'
-    threat_model = 'l0'
-    num_steps = 500
-    random_init = 0
-    proximal_operator = 23
-    primal_lr = 0.1
-    primal_lr_decrease = 0.01
-    dual_ratio_init = 0.01
-    dual_lr = 0.1
-    dual_lr_decrease = 0.1
-    dual_ema = 0.9
-    dual_min_ratio = 1e-6
-    proximal_steps = 5
-    epsilon_threshold = 1e-2
+    return dict(
+        name='pdpgd',
+        source='adv_lib',
+        threat_model='l0',
+        num_steps=500,
+        random_init=0,
+        proximal_operator=23,
+        primal_lr=0.1,
+        primal_lr_decrease=0.01,
+        dual_ratio_init=0.01,
+        dual_lr=0.1,
+        dual_lr_decrease=0.1,
+        dual_ema=0.9,
+        dual_min_ratio=1e-6,
+        proximal_steps=5,
+        epsilon_threshold=1e-2,
+    )
 
 
 def get_adv_lib_pdpgd(threat_model: str, num_steps: int, random_init: float, proximal_operator: Optional[float],
@@ -332,16 +366,18 @@ def get_adv_lib_pdpgd(threat_model: str, num_steps: int, random_init: float, pro
 
 
 def adv_lib_pgd():
-    name = 'pgd'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    epsilon = 4 / 255
-    num_steps = 40
-    random_init = True
-    num_restarts = 1
-    loss_function = 'ce'
-    relative_step_size = 0.01 / 0.3
-    absolute_step_size = None
+    return dict(
+        name='pgd',
+        source='adv_lib',
+        threat_model='linf',
+        epsilon=4 / 255,
+        num_steps=40,
+        random_init=True,
+        num_restarts=1,
+        loss_function='ce',
+        relative_step_size=0.01 / 0.3,
+        absolute_step_size=None,
+    )
 
 
 def get_adv_lib_pgd(epsilon: float, num_steps: int, random_init: bool, num_restarts: int, loss_function: str,
@@ -352,15 +388,17 @@ def get_adv_lib_pgd(epsilon: float, num_steps: int, random_init: bool, num_resta
 
 
 def adv_lib_pgd_minimal():
-    name = 'pgd_minimal'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100  # default was 40
-    random_init = True
-    num_restarts = 1
-    loss_function = 'ce'
-    relative_step_size = 0.01 / 0.3
-    absolute_step_size = None
+    return dict(
+        name='pgd_minimal',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,  # default was 40
+        random_init=True,
+        num_restarts=1,
+        loss_function='ce',
+        relative_step_size=0.01 / 0.3,
+        absolute_step_size=None,
+    )
 
 
 def get_adv_lib_pgd_minimal(num_steps: int, random_init: bool, num_restarts: int, loss_function: str,
@@ -375,25 +413,29 @@ def get_adv_lib_pgd_minimal(num_steps: int, random_init: bool, num_restarts: int
 
 
 def adv_lib_tr():
-    name = 'tr'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100
-    adaptive = False
-    epsilon = 0.001
-    c = 9
-    worst_case = False
+    return dict(
+        name='tr',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,
+        adaptive=False,
+        epsilon=0.001,
+        c=9,
+        worst_case=False,
+    )
 
 
 def adv_lib_tr_adaptive():
-    name = 'tr'
-    source = 'adv_lib'
-    threat_model = 'linf'
-    num_steps = 100
-    adaptive = True
-    epsilon = 0.001
-    c = 9
-    worst_case = False
+    return dict(
+        name='tr',
+        source='adv_lib',
+        threat_model='linf',
+        num_steps=100,
+        adaptive=True,
+        epsilon=0.001,
+        c=9,
+        worst_case=False,
+    )
 
 
 def get_adv_lib_tr(threat_model: str, num_steps: int, adaptive: bool, epsilon: float, c: int,
@@ -403,12 +445,14 @@ def get_adv_lib_tr(threat_model: str, num_steps: int, adaptive: bool, epsilon: f
 
 
 def adv_lib_vfga():
-    name = 'vfga'
-    source = 'adv_lib'
-    threat_model = 'l0'
-    num_steps = 1000
-    n_samples = 10
-    large_memory = False
+    return dict(
+        name='vfga',
+        source='adv_lib',
+        threat_model='l0',
+        num_steps=1000,
+        n_samples=10,
+        large_memory=False,
+    )
 
 
 def get_adv_lib_vfga(num_steps: int, n_samples: int, large_memory: bool) -> Callable:
