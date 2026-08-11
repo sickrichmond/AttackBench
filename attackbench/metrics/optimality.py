@@ -3,16 +3,25 @@ Optimality computation for AttackBench (Stage 3).
 Provides user-friendly API to compute local optimality scores.
 """
 import numpy as np
-from typing import Dict, List, Any, Union, Optional
-from .distances import eval_optimality as _eval_optimality_core
-from .ensemble import ensemble_distances
+from typing import Dict, List, Any, Optional
+from .distances import eval_optimality as _eval_optimality_core, _aurec
 # NOTE: download_optimal_distances is imported lazily inside functions to avoid circular import
 
-# NumPy 2.0+ compatibility: trapz was renamed to trapezoid
-try:
-    _trapz = np.trapezoid
-except AttributeError:
-    _trapz = np.trapz
+
+def _clean_accuracy(attack_results: Dict[str, Any]) -> Optional[float]:
+    """Clean accuracy of the target model, from the per-sample correctness flags."""
+    correct = attack_results.get('correct', [])
+    if len(correct):
+        return float(np.mean(correct))
+    ori_success = attack_results.get('ori_success', [])
+    if len(ori_success):
+        return 1.0 - float(np.mean(ori_success))
+    return None
+
+
+def _lower_envelope(distances_list: List[np.ndarray]) -> np.ndarray:
+    """Sample-wise minimum across attacks — the empirical best attack a* of the paper."""
+    return np.minimum.reduce(distances_list)
 
 
 def compute_local_optimality(
@@ -107,12 +116,8 @@ def compute_local_optimality(
         
         if len(distances_list) == 0:
             raise ValueError("No valid distances in reference_results")
-        
-        # Start with first attack and iteratively compute minimum
-        reference_distances = distances_list[0]
-        for dist in distances_list[1:]:
-            reference_distances = ensemble_distances(reference_distances, dist)
-        
+
+        reference_distances = _lower_envelope(distances_list)
         reference_type = f'ensemble_{len(distances_list)}'
         
     elif use_wandb:
@@ -199,12 +204,15 @@ def compute_local_optimality(
                        f"Ensure the reference was computed on compatible samples.")
     
     # Compute optimality using core function
-    optimality = _eval_optimality_core(attack_distances, reference_distances)
-    
-    # Compute AUC for both
-    auc_attack = _compute_auc(attack_distances)
-    auc_reference = _compute_auc(reference_distances)
-    
+    clean_acc = _clean_accuracy(attack_results)
+    optimality = _eval_optimality_core(attack_distances, reference_distances, clean_acc)
+
+    # Areas under the robustness evaluation curves, both integrated over [0, eps_0]
+    finite_ref = reference_distances[np.isfinite(reference_distances)]
+    eps_0 = float(finite_ref.max()) if len(finite_ref) else float('nan')
+    auc_attack = _aurec(attack_distances, eps_0, n_samples) if len(finite_ref) else float('nan')
+    auc_reference = _aurec(reference_distances, eps_0, n_samples) if len(finite_ref) else float('nan')
+
     return {
         'optimality': optimality,
         'auc_attack': auc_attack,
@@ -212,14 +220,6 @@ def compute_local_optimality(
         'reference_type': reference_type,
         'n_samples': len(attack_distances)
     }
-
-
-def _compute_auc(distances: np.ndarray) -> float:
-    """Helper to compute AUC under robust accuracy curve."""
-    unique_distances, counts = np.unique(distances, return_counts=True)
-    robust_acc = 1 - counts.cumsum() / len(distances)
-    auc = _trapz(robust_acc, unique_distances)
-    return float(auc)
 
 
 def compare_attacks_optimality(
@@ -264,17 +264,16 @@ def compare_attacks_optimality(
         if len(dist) == 0:
             raise ValueError(f"No distances found for threat model '{threat_model}'")
         distances_list.append(dist)
-    
+
     # Compute ensemble (element-wise minimum across all attacks)
-    ensemble = distances_list[0].copy()
-    for dist in distances_list[1:]:
-        ensemble = ensemble_distances(ensemble, dist)
-    
+    ensemble = _lower_envelope(distances_list)
+
     # Compute optimality for each attack
     optimality_scores = {}
-    for name, distances in zip(attack_names, distances_list):
-        opt = _eval_optimality_core(distances, ensemble)
-        optimality_scores[name] = opt
+    for name, results, distances in zip(attack_names, attack_results_list, distances_list):
+        optimality_scores[name] = _eval_optimality_core(
+            distances, ensemble, _clean_accuracy(results)
+        )
     
     # Create ranking (sorted by optimality, descending)
     ranking = sorted(optimality_scores.items(), key=lambda x: x[1], reverse=True)

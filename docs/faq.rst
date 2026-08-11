@@ -166,10 +166,12 @@ What does ``run_attack`` return?
 
 By default, ``run_attack`` returns minimal data:
 
-- ``distances``: Dict of distances per norm
-- ``best_optim_distances``: Best distances tracked during the attack
+- ``distances``: Dict per norm of ``d*``, the best perturbation found during the
+  optimization (not the attack's last iterate)
+- ``final_distances``: Dict per norm of the last-iterate distance (diagnostics)
 - ``adv_success``: Boolean list of successful attacks
-- ``ori_success``: Boolean list of originally correct predictions
+- ``ori_success``: Boolean list of samples already misclassified before the attack
+- ``correct``: Boolean list of clean correctness
 - ``hashes``: SHA-512 hash of each input image (always included)
 
 Use ``include_metadata=True`` for additional data (queries, times, predictions).

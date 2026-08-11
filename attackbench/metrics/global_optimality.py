@@ -4,9 +4,7 @@ Provides user-friendly API for multi-model evaluation and leaderboard generation
 """
 import numpy as np
 from typing import Dict, List, Any, Optional, Union
-from collections import defaultdict
-from .optimality import compute_local_optimality, _compute_auc
-from .ensemble import ensemble_distances
+from .optimality import compute_local_optimality, _lower_envelope
 
 
 def compute_global_optimality(
@@ -175,13 +173,8 @@ def create_attack_leaderboard(
         
         if len(distances_list) == 0:
             raise ValueError(f"No valid distances for model {model_name}")
-        
-        # Compute ensemble for this model
-        ensemble = distances_list[0].copy()
-        for dist in distances_list[1:]:
-            ensemble = ensemble_distances(ensemble, dist)
-        
-        ensemble_per_model[model_name] = ensemble
+
+        ensemble_per_model[model_name] = _lower_envelope(distances_list)
     
     # Step 2: Compute global optimality for each attack
     attack_global_optimalities = {}

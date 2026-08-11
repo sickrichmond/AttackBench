@@ -10,7 +10,7 @@ from .distances import (compute_distance_statistics, eval_optimality,
 from .curves import (compute_robust_accuracy_curve, compute_auc_robust_accuracy, 
                     compute_certified_robustness_metrics)
 from .ensemble import analyze_attack_ensemble
-from .optimality import compute_local_optimality
+from .optimality import compute_local_optimality, _clean_accuracy
 
 def get_stats(
     attack_results: Dict[str, Any], 
@@ -101,38 +101,33 @@ def get_stats(
     
     # 2. OPTIONAL: Optimality computation
     if include_optimality:
+        # The reference a* is the lower envelope over OTHER attacks: either passed in
+        # explicitly, or downloaded from W&B. It is never derived from this attack's own
+        # distances — that would compare the attack against itself and score ~1.0 always.
         try:
-            # Extract metadata for compute_local_optimality
-            dataset = kwargs.get('dataset', None)
-            
-            # Build reference_results from explicit best_distances if provided
             reference_results = None
-            if best_distances:
+            if best_distances is not None and len(best_distances):
                 # Wrap explicit best_distances as a synthetic reference result
                 reference_results = [{
                     'distances': {threat_model: list(best_distances)}
                 }]
-            elif not best_distances:
-                # Check if best distances are embedded in attack_results
-                best_optim = attack_results.get('best_optim_distances', {})
-                if threat_model in best_optim and best_optim[threat_model]:
-                    reference_results = [{
-                        'distances': {threat_model: best_optim[threat_model]}
-                    }]
-            
+
             opt_result = compute_local_optimality(
                 attack_results=attack_results,
                 reference_results=reference_results,
                 threat_model=threat_model,
-                dataset=dataset,
+                dataset=kwargs.get('dataset', None),
                 model_name=model_name,
                 use_wandb=auto_load_best and reference_results is None,
                 cache_dir=cache_dir
             )
             if not np.isnan(opt_result['optimality']):
                 stats['optimality'] = opt_result['optimality']
+                stats['optimality_reference'] = opt_result['reference_type']
         except Exception as e:
-            print(f"Warning: Could not compute optimality: {e}")
+            print(f"Warning: optimality not computed ({e}).\n"
+                  f"         Pass best_distances=[...] / reference_results, or make the W&B "
+                  f"optimal distances available for this dataset/model/threat model.")
     
     # 3. OPTIONAL: Robust accuracy curves
     if include_curves:
@@ -232,15 +227,15 @@ def compute_curves(attack_results: Dict[str, Any], threat_model: str) -> Dict[st
         'robust_accuracy_auc': auc
     }
 
-def compute_optimality(attack_results: Dict[str, Any], threat_model: str, 
+def compute_optimality(attack_results: Dict[str, Any], threat_model: str,
                       best_distances: List[float]) -> float:
     """Public function: compute only optimality score."""
     distances = np.array(attack_results.get('distances', {}).get(threat_model, []))
-    
-    if len(distances) == 0 or not best_distances:
+
+    if len(distances) == 0 or not len(best_distances):
         return float('nan')
-    
-    return eval_optimality(distances, best_distances)
+
+    return eval_optimality(distances, best_distances, _clean_accuracy(attack_results))
 
 def compute_efficiency(attack_results: Dict[str, Any], threat_model: str) -> Dict[str, float]:
     """Public function: compute only efficiency metrics."""

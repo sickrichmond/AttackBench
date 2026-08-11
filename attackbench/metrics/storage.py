@@ -46,9 +46,10 @@ def save_precompiled_distances(
     
     save_data = {
         'distances': attack_data.get('distances', {}),
-        'best_optim_distances': attack_data.get('best_optim_distances', {}),
+        'final_distances': attack_data.get('final_distances', {}),
         'adv_success': attack_data.get('adv_success', []),
         'ori_success': attack_data.get('ori_success', []),
+        'correct': attack_data.get('correct', []),
         'hashes': attack_data.get('hashes', []),
         'threat_model': threat_model,
         # Add computed metrics

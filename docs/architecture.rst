@@ -165,10 +165,16 @@ The ``run_attack()`` function returns a dictionary with minimal raw data:
 **Essential data (always returned):**
 
 - ``distances``: Dict mapping norm names (``'l0'``, ``'l1'``, ``'l2'``, ``'linf'``)
-  to lists of adversarial distances
-- ``best_optim_distances``: Optimal distances tracked by ``BenchModel`` during the attack
+  to lists of ``d*`` — the *smallest* perturbation found during the optimization, as
+  defined in Algorithm 1 of the AttackBench paper. This is what optimality is computed
+  on. ``0`` for already-misclassified samples, ``inf`` for samples never misclassified.
+- ``final_distances``: Distance of the sample the attack actually returned (its last
+  iterate). Always ``>= distances``; a large gap means the attack throws away its own
+  best result. Diagnostics only.
 - ``adv_success``: Boolean list indicating successful adversarial examples
-- ``ori_success``: Boolean list indicating originally correct predictions
+- ``ori_success``: Boolean list indicating samples that were ALREADY misclassified
+  before the attack
+- ``correct``: Boolean list of clean correctness — ``accuracy`` is ``mean(correct)``
 - ``hashes``: SHA-512 hashes of each input image (computed on raw RGB values).
   Always included to enable hash-based matching with optimal distances.
 

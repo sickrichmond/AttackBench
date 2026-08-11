@@ -166,11 +166,18 @@ def run_attack(
     
     Returns:
         Dict with MINIMAL RAW attack data:
-        - distances: Dict[str, List[float]] (adversarial distances per norm)
-        - best_optim_distances: Dict[str, List[float]] (optimal tracked distances)
+        - distances: Dict[str, List[float]] — d*, the smallest perturbation found
+          during the optimization (AttackBench Alg. 1), per norm. This is what the
+          optimality metric is computed on. 0 for already-misclassified samples,
+          inf for samples the attack never broke.
+        - final_distances: Dict[str, List[float]] — distance of the sample the attack
+          actually returned (last iterate). Diagnostics only: >= distances by
+          construction, and a large gap means the attack discards its own best result.
         - adv_success: List[bool] (attack success per sample - needed for ASR)
-        - ori_success: List[bool] (original correctness - needed for accuracy)
-        
+        - ori_success: List[bool] (sample was ALREADY misclassified before the attack)
+        - correct: List[bool] (sample was correctly classified before the attack;
+          clean accuracy is mean(correct))
+
         If include_metadata=True, also includes:
         - original_predictions: List[int]
         - adversarial_predictions: List[int]
@@ -246,9 +253,10 @@ def run_attack(
             print(f"[AttackBench] Found cached distances! Skipping attack execution.")
             return {
                 'distances': cached_data.get('distances', {}),
-                'best_optim_distances': cached_data.get('best_optim_distances', {}),
+                'final_distances': cached_data.get('final_distances', {}),
                 'adv_success': cached_data.get('adv_success', []),
                 'ori_success': cached_data.get('ori_success', []),
+                'correct': cached_data.get('correct', []),
                 'hashes': cached_data.get('hashes', []),
                 'metadata': {
                     'dataset': dataset_name,
@@ -270,11 +278,11 @@ def run_attack(
     targeted = False
     loader_length = len(dataset)
 
-    accuracies, ori_success, adv_success = [], [], []
+    correct, ori_success, adv_success = [], [], []
     hashes_list, box_failures, batch_failures = [], [], []
     predictions, adv_predictions = [], []
     forwards, backwards, times = [], [], []
-    distances, best_optim_distances = defaultdict(list), defaultdict(list)
+    distances, final_distances = defaultdict(list), defaultdict(list)
 
     if save_adversarial:
         all_inputs, all_adv_inputs = [], []
@@ -322,7 +330,7 @@ def run_attack(
         backwards.extend(model.num_backwards.cpu().tolist())
 
         # Original inputs
-        accuracies.extend(model.correct.cpu().tolist())
+        correct.extend(model.correct.cpu().tolist())
         ori_success.extend(model.ori_success.cpu().tolist())
 
         # Checking box constraint
@@ -348,24 +356,29 @@ def run_attack(
         adv_success.extend(success.cpu().tolist())
 
         for metric_name, metric_func in metrics.items():
-            batch_distances = metric_func(adv_inputs, inputs)
+            final = metric_func(adv_inputs, inputs)
             # Failed attacks return the original input (distance ≈ 0).
             # Set distance to inf so they are correctly treated as failures
             # in SEC/optimality computations. Preserve distance=0 for samples
             # that were already misclassified (ori_success=True).
-            failed_mask = ~success & ~model.ori_success
-            batch_distances[failed_mask] = float('inf')
-            distances[metric_name].extend(batch_distances.cpu().tolist())
-            best_optim_distances[metric_name].extend(model.min_dist[metric_name].cpu().tolist())
+            final[~success & ~model.ori_success] = float('inf')
+            # d* (AttackBench Alg. 1): the best perturbation found *during* the
+            # optimization, not the last iterate. min_dist only updates on tracked
+            # queries, so an attack returning a better sample without re-querying it
+            # would be underestimated => take the elementwise minimum of the two.
+            best = torch.minimum(model.min_dist[metric_name], final)
+            distances[metric_name].extend(best.cpu().tolist())
+            final_distances[metric_name].extend(final.cpu().tolist())
 
     # ── Package results ──────────────────────────────────────────────────
     n_samples = len(adv_success)
     
     clean_data = {
-        'distances': dict(distances),
-        'best_optim_distances': dict(best_optim_distances),
+        'distances': dict(distances),          # d*: best found during optimization
+        'final_distances': dict(final_distances),  # last iterate, for diagnostics only
         'adv_success': adv_success,
         'ori_success': ori_success,
+        'correct': correct,  # clean correctness per sample (accuracy is mean(correct))
         'hashes': hashes_list,  # Always included for sample identity tracking
         'metadata': {
             'dataset': dataset_name,
