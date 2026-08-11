@@ -72,10 +72,10 @@ pip install attackbenchlib
 # Attack library wrappers (ART, Foolbox, Torchattacks, CleverHans)
 pip install "attackbenchlib[attacks]"
 
-# Model loading utilities (RobustBench, timm, transformers)
+# Model loading utilities (RobustBench)
 pip install "attackbenchlib[models]"
 
-# Analysis and visualization tools (scikit-learn, seaborn, plotly)
+# Analysis and evaluation tools
 pip install "attackbenchlib[metrics]"
 
 # Everything (attacks + models + metrics)
@@ -88,10 +88,13 @@ pip install "attackbenchlib[all]"
 > pip install git+https://github.com/fra31/auto-attack
 > ```
 
-> **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not available on PyPI.
-> If you need adv-lib attacks, install it manually:
+> **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not on PyPI, so it is not
+> part of `[all]`. Its implementations are among the top-ranked ones in the AttackBench
+> paper, so installing without it leaves you with weaker re-implementations of the same
+> attacks — install it with the dedicated extra (or by hand):
 > ```bash
-> pip install git+https://github.com/jeromerony/adversarial-library
+> pip install "attackbenchlib[adv_lib]"
+> # equivalently: pip install git+https://github.com/jeromerony/adversarial-library
 > ```
 
 > **Note on `deeprobust`:** Requires `scipy<1.8.0` and only works on Python 3.9:
@@ -147,6 +150,28 @@ results = attackbench.run_attack(
 stats = attackbench.get_stats(results, 'linf')
 print(f"ASR: {stats['ASR']*100:.1f}%")
 ```
+
+Every attack runs under a budget of 2000 forward+backward propagations per sample — the
+budget used in the paper, and what makes attacks comparable to each other. Pass
+`run_attack(..., query_budget=None)` to lift it for exploratory runs.
+
+### Upgrading from 1.x
+
+Version 2.0 changes what the numbers mean, so results are not comparable with 1.x:
+
+- `results['distances']` is now `d*`, the smallest perturbation found **during** the
+  optimization (as defined in the paper), not the distance of the sample the attack
+  returned last. The last iterate is available as `results['final_distances']`.
+- `stats['accuracy']` is the clean accuracy. In 1.x it reported the fraction of
+  *already misclassified* samples, i.e. the error rate.
+- `optimality` is only computed against a real lower envelope — passed in explicitly or
+  downloaded from W&B. 1.x silently fell back to the attack's own tracked distances,
+  which scored ~1.0 by construction.
+- The query budget is enforced by default (see above); 1.x enforced none.
+- `run_attack(use_cached=...)` defaults to `False`, and a cached W&B result is only
+  reused when its per-sample hashes match the samples being evaluated.
+- `include_metadata` is gone: query counts, timings, predictions and the failure
+  indicators are always returned.
 
 Preconfigured attacks available out of the box: `pgd`, `fgsm`, `apgd`, `fab`, `fmn`, `deepfool`, `superdeepfool`, `trust_region`.
 
