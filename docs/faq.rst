@@ -174,8 +174,10 @@ By default, ``run_attack`` returns minimal data:
 - ``correct``: Boolean list of clean correctness
 - ``hashes``: SHA-512 hash of each input image (always included)
 
-Use ``include_metadata=True`` for additional data (queries, times, predictions).
-Use ``save_adversarial=True`` to include adversarial tensors.
+Query counts, per-batch times, predictions and the failure indicators
+(``box_failures``, ``batch_failures``) are always included — they are how you tell a
+broken attack from a robust model. Use ``save_adversarial=True`` to also get the
+adversarial tensors.
 
 For statistics, pass results to ``attackbench.get_stats(results, threat_model)``.
 
@@ -189,7 +191,8 @@ Tips for faster execution:
 
 1. Use GPU: ``device = torch.device('cuda')``
 2. Increase batch size: ``batch_size=128`` (if memory allows)
-3. Enable W&B caching: ``use_cached=True`` (default) skips runs if results exist
+3. Enable W&B caching: ``use_cached=True`` reuses published results when the
+   per-sample hashes match exactly (off by default)
 4. Use compiled models when possible
 
 Out of memory errors
@@ -289,8 +292,8 @@ You can also pass metadata explicitly (e.g. for custom attacks):
 Can I use AttackBenchLib offline?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes. Set ``use_cached=False`` in ``run_attack()`` to skip W&B checks.
-All core functionality works locally.
+Yes. ``use_cached=False`` is the default, so ``run_attack()`` never contacts W&B
+unless you ask it to. All core functionality works locally.
 
 Is dataset sampling deterministic?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

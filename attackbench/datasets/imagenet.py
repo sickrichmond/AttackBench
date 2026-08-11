@@ -53,27 +53,43 @@ class ImageNetKaggle(Dataset):
         return x, self.targets[idx]
 
 
-def prepare_imagenet_subset(root, split='val', n_samples: int = 5000):
+# Size of the validation subset shipped with the package: the one used in the paper.
+PAPER_SUBSET_SIZE = 5000
+
+
+def prepare_imagenet_subset(root, split='val', n_samples: int = PAPER_SUBSET_SIZE,
+                            out_dir: Optional[Union[str, Path]] = None):
+    """Draw a fixed list of validation files and write it next to the data (never into
+    the installed package, which may be read-only and is shared between runs)."""
     samples_dir = os.path.join(root, "ILSVRC/Data/CLS-LOC", split)
     data_list = np.array(os.listdir(samples_dir))
 
     np.random.seed(0)
     subset = np.random.choice(data_list, replace=False, size=n_samples)
-    subset_dir = Path(os.path.dirname(subsets.__file__))
-    np.savetxt(subset_dir / f'imagenet-{n_samples}-{split}.txt', subset, fmt='%s')
+    out_dir = Path(out_dir) if out_dir is not None else Path(root)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / f'imagenet-{n_samples}-{split}.txt'
+    np.savetxt(out_file, subset, fmt='%s')
+    return out_file
 
 
 def load_imagenet(root: Union[str, Path],
                   split: str = 'val',
                   transform=None,
-                  n_samples: Optional[int] = 5000) -> Dataset:
+                  n_samples: Optional[int] = PAPER_SUBSET_SIZE) -> Dataset:
+    """Full validation set (n_samples=None) or the shipped fixed subset of that size."""
     data = ImageNetKaggle(root=root, split='val', transform=transform)
     if n_samples is None:
         return data
 
     subset_names_file = Path(os.path.dirname(subsets.__file__)) / f'imagenet-{n_samples}-{split}.txt'
     if not subset_names_file.exists():
-        prepare_imagenet_subset(root, split=data.split, n_samples=n_samples)
+        raise FileNotFoundError(
+            f"AttackBench only ships the paper's {PAPER_SUBSET_SIZE}-sample validation list "
+            f"({subset_names_file.name} not found). For any other size call "
+            f"get_loader('imagenet', num_samples=N), which draws a deterministic random "
+            f"subset of the full validation set using `seed`."
+        )
     subset_names = np.loadtxt(subset_names_file, dtype=str)
     subset_indices = [i for i, file in enumerate(data.samples_lst) if file in subset_names]
     return Subset(dataset=data, indices=subset_indices)

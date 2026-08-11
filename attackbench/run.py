@@ -18,6 +18,15 @@ from tqdm import tqdm
 # W&B integration for cached distances
 from .wandb.utils import get_precompiled_distances
 
+# Max forward+backward propagations per sample. 2000 is the budget used in the
+# AttackBench paper: it is what makes attacks comparable to one another.
+DEFAULT_QUERY_BUDGET = 2000
+
+
+def _hash_batch(inputs: Tensor) -> list:
+    """SHA-512 of each sample, to check that runs and cached results share the samples."""
+    return [hashlib.sha512(np.ascontiguousarray(x.numpy())).hexdigest() for x in inputs]
+
 
 def _set_seed(seed: int = None) -> None:
     """Set random seed for reproducibility."""
@@ -113,19 +122,19 @@ def run_attack(
     attack: Callable,
     threat_model: str,
     device: Optional[torch.device] = None,
+    query_budget: Optional[int] = DEFAULT_QUERY_BUDGET,
     save_results: bool = False,
     save_adversarial: bool = False,
     output_dir: Optional[str] = None,
     seed: int = 42,
     debug: bool = False,
-    include_metadata: bool = False,  # NEW: Control extra data
     # Metadata for W&B integration and optimality computation
     dataset_name: Optional[str] = None,
     model_name: Optional[str] = None,
     attack_name: Optional[str] = None,
     attack_lib: Optional[str] = None,
     # Caching options
-    use_cached: bool = True,
+    use_cached: bool = False,
     cache_dir: str = "./cache",
     **kwargs
 ) -> Dict[str, Any]:
@@ -140,27 +149,33 @@ def run_attack(
     (dataset_name, model_name, attack_name, attack_lib) is automatically extracted
     from the objects. You don't need to specify these parameters manually.
     
-    If use_cached=True and all metadata is available, the function will first
-    check W&B for existing precompiled distances with the same parameters.
-    If found, returns cached results without running the attack.
-    
+    **Query budget:**
+    By default every attack is limited to DEFAULT_QUERY_BUDGET (2000) forward+backward
+    propagations per sample, the budget used in the AttackBench paper — that limit is
+    what makes attacks comparable to each other. Pass query_budget=None to run without
+    a budget (debugging, exploratory runs); the results are then NOT comparable with
+    the published leaderboard.
+
     Args:
         model: PyTorch model to attack
         dataset: DataLoader with inputs to attack
         attack: Attack function/callable
         threat_model: Threat model ('linf', 'l2', 'l1', 'l0')
         device: Device to run on (default: auto-detect)
+        query_budget: Max forward+backward propagations per sample (None = unlimited).
+            Overrides a budget already set on a BenchModel by get_model().
         save_results: Save results to disk
         save_adversarial: Save adversarial examples
         output_dir: Directory for saved results
         seed: Random seed
-        debug: Debug mode
-        include_metadata: Include extra metadata (predictions, queries, times, hashes)
+        debug: Debug mode — let attack exceptions propagate instead of recording a failure
         dataset_name: Override auto-detected dataset name
         model_name: Override auto-detected model name
         attack_name: Override auto-detected attack name
         attack_lib: Override auto-detected attack library
-        use_cached: If True, check W&B for cached precompiled distances before running
+        use_cached: If True, look up precompiled distances on W&B before running, and
+            reuse them only if their per-sample hashes match this dataset exactly.
+            Off by default: a benchmark should measure the attack you passed it.
         cache_dir: Directory for local cache of W&B downloads
         **kwargs: Additional arguments passed to attack
     
@@ -178,17 +193,17 @@ def run_attack(
         - correct: List[bool] (sample was correctly classified before the attack;
           clean accuracy is mean(correct))
 
-        If include_metadata=True, also includes:
-        - original_predictions: List[int]
-        - adversarial_predictions: List[int]
-        - num_forwards: List[int]
-        - num_backwards: List[int]
-        - times: List[float]
-        - hashes: List[str]
-        - box_failures: List[bool]
-        - batch_failures: List[bool]
+        - hashes: List[str] (SHA-512 per sample, for hash-based matching)
+
+        Always included — these are the failure indicators the benchmark exists to
+        surface, so they are not hidden behind a flag:
+        - num_forwards / num_backwards: List[int] (query counts per sample)
+        - times: List[float] (per batch)
+        - box_failures: List[bool] (attack produced values outside [0, 1])
+        - batch_failures: List[bool] (the attack raised on that batch)
+        - original_predictions / adversarial_predictions: List[int]
         - targeted: bool
-        
+
         If save_adversarial=True, also includes:
         - adv_inputs: Tensor (adversarial examples)
         - inputs: Tensor (original inputs)
@@ -216,6 +231,10 @@ def run_attack(
         from .models.benchmodel_wrapper import BenchModel
         model = BenchModel(model)
 
+    # The query budget is the benchmark's fairness guarantee, so run_attack owns it:
+    # an explicit budget here wins over whatever get_model() set on the BenchModel.
+    model.num_max_propagations = query_budget
+
     model.to(device)
 
     # Add norm to kwargs for custom attacks
@@ -231,11 +250,13 @@ def run_attack(
     attack_name = attack_name or auto_attack
     attack_lib = attack_lib or auto_lib
 
-    # Calculate n_samples from dataset for W&B lookup
-    n_samples = sum(len(batch[0]) for batch in dataset)
-
-    # Check for cached precompiled distances on W&B
+    # Check for cached precompiled distances on W&B. The artifact name only encodes
+    # (dataset, norm, model, attack, lib, n_samples), which does not pin down WHICH samples
+    # were used nor the attack's hyperparameters — so a hit is only trusted when the
+    # per-sample hashes match. Computing them costs a pass over the data, hence only here.
     if use_cached and all([dataset_name, model_name, attack_name, attack_lib]):
+        expected_hashes = [h for inputs, _ in dataset for h in _hash_batch(inputs)]
+        n_samples = len(expected_hashes)
         key = f"{dataset_name}-{threat_model}-{model_name}-{attack_name}-{attack_lib}-{n_samples}".lower()
         print(f"[AttackBench] Checking W&B for cached distances: {key}")
 
@@ -249,15 +270,23 @@ def run_attack(
             cache_dir=cache_dir
         )
 
+        if cached_data is not None and cached_data.get('hashes') != expected_hashes:
+            warnings.warn(
+                'Cached distances found on W&B, but their per-sample hashes do not match this '
+                'dataset (different subset, seed or preprocessing). Ignoring the cache and '
+                'running the attack.'
+            )
+            cached_data = None
+
         if cached_data is not None:
-            print(f"[AttackBench] Found cached distances! Skipping attack execution.")
+            print(f"[AttackBench] Reusing cached distances (hashes match); skipping execution.")
             return {
                 'distances': cached_data.get('distances', {}),
                 'final_distances': cached_data.get('final_distances', {}),
                 'adv_success': cached_data.get('adv_success', []),
                 'ori_success': cached_data.get('ori_success', []),
                 'correct': cached_data.get('correct', []),
-                'hashes': cached_data.get('hashes', []),
+                'hashes': expected_hashes,
                 'metadata': {
                     'dataset': dataset_name,
                     'model_name': model_name,
@@ -268,8 +297,7 @@ def run_attack(
                     'source': 'wandb_cache'
                 }
             }
-        else:
-            print(f"[AttackBench] No cached distances found. Running attack...")
+        print(f"[AttackBench] No usable cached distances. Running attack...")
 
     # ── Execute attack (batch loop) ──────────────────────────────────────
     from .adv_lib_sub import _default_metrics
@@ -292,9 +320,7 @@ def run_attack(
             all_inputs.append(inputs.clone())
 
         # Compute hashes to ensure input samples are identical
-        for inp in inputs:
-            input_hash = hashlib.sha512(np.ascontiguousarray(inp.numpy())).hexdigest()
-            hashes_list.append(input_hash)
+        hashes_list.extend(_hash_batch(inputs))
 
         inputs, labels = inputs.to(device), labels.to(device)
         attack_inputs, attack_labels = inputs.clone(), labels.clone()
@@ -380,6 +406,18 @@ def run_attack(
         'ori_success': ori_success,
         'correct': correct,  # clean correctness per sample (accuracy is mean(correct))
         'hashes': hashes_list,  # Always included for sample identity tracking
+        # Failure indicators and query counts: always returned. These are what tells a
+        # broken attack implementation from a strong model, which is the whole point of
+        # the benchmark — gating them behind a flag hides exactly what matters.
+        'original_predictions': predictions,
+        'adversarial_predictions': adv_predictions,
+        'num_forwards': forwards,
+        'num_backwards': backwards,
+        'times': times,
+        'box_failures': box_failures,
+        'batch_failures': batch_failures,
+        'targeted': targeted,
+        'query_budget': query_budget,
         'metadata': {
             'dataset': dataset_name,
             'model_name': model_name,
@@ -387,30 +425,15 @@ def run_attack(
             'attack_lib': attack_lib,
             'threat_model': threat_model,
             'n_samples': n_samples,
+            'query_budget': query_budget,
             'source': 'executed'
         }
     }
 
-    # OPTIONAL: Extra metadata (only if requested)
-    if include_metadata:
-        clean_data.update({
-            'original_predictions': predictions,
-            'adversarial_predictions': adv_predictions,
-            'num_forwards': forwards,
-            'num_backwards': backwards,
-            'times': times,
-            'box_failures': box_failures,
-            'batch_failures': batch_failures,
-            'targeted': targeted,
-        })
-    
     # Add adversarial inputs if requested
     if save_adversarial:
-        if len(all_inputs) > 1:
-            all_inputs = torch.cat(all_inputs, dim=0)
-            all_adv_inputs = torch.cat(all_adv_inputs, dim=0)
-        clean_data['adv_inputs'] = all_adv_inputs
-        clean_data['inputs'] = all_inputs
+        clean_data['inputs'] = torch.cat(all_inputs, dim=0)
+        clean_data['adv_inputs'] = torch.cat(all_adv_inputs, dim=0)
     
     # Save raw results if requested
     if save_results or save_adversarial:

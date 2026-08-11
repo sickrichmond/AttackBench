@@ -1,3 +1,4 @@
+import time
 import warnings
 from functools import wraps
 from typing import Callable, Optional, Tuple
@@ -6,6 +7,38 @@ import torch
 from ..adv_lib_sub import _default_metrics
 from torch import Tensor, nn
 from torch.nn import functional as F
+
+
+class _Clock:
+    """
+    Elapsed time in seconds, measured where the work actually happens: CUDA events
+    (synchronized, so asynchronous kernels are accounted for) on GPU, perf_counter on CPU.
+    """
+
+    def __init__(self, device: torch.device):
+        self.device = device
+        self.cuda = device.type == 'cuda'
+        if self.cuda:
+            with torch.cuda.device(device):
+                self._start_event = torch.cuda.Event(enable_timing=True)
+                self._end_event = torch.cuda.Event(enable_timing=True)
+        self._t0 = 0.0
+
+    def start(self) -> None:
+        if self.cuda:
+            torch.cuda.synchronize(self.device)
+            self._start_event.record()
+        else:
+            self._t0 = time.perf_counter()
+
+    def stop(self) -> float:
+        """Seconds since the last start(). Can be called repeatedly to peek."""
+        if self.cuda:
+            self._end_event.record()
+            torch.cuda.synchronize(self.device)
+            return self._start_event.elapsed_time(self._end_event) / 1000  # ms -> s
+        return time.perf_counter() - self._t0
+
 
 class BenchModel(nn.Module):
     def __init__(self, model: nn.Module, enforce_box: bool = True, num_max_propagations: Optional[int] = None):
@@ -75,32 +108,14 @@ class BenchModel(nn.Module):
         return ((self.num_forwards + self.num_backwards) >= self.num_max_propagations).all()
 
     def timeit(func):
+        """Accumulate the time BenchModel spends on its own bookkeeping, so it can be
+        subtracted from the time attributed to the attack."""
 
         @wraps(func)
         def timeit_wrapper(self, *args, **kwargs):
-            # Fix 4: Device-specific CUDA synchronization per evitare RuntimeError
-            if hasattr(self, 'device') and self.device.type == 'cuda':
-                torch.cuda.synchronize(self.device)
-            else:
-                torch.cuda.synchronize()  # Fallback per compatibilità
-            
-            # Fix 5: Assicurati che gli eventi CUDA siano sul device corretto
-            if hasattr(self, 'device') and self.device.type == 'cuda':
-                with torch.cuda.device(self.device):
-                    self._bench_start_event.record()
-                    result = func(self, *args, **kwargs)
-                    self._bench_end_event.record()
-            else:
-                self._bench_start_event.record()
-                result = func(self, *args, **kwargs)
-                self._bench_end_event.record()
-            
-            if hasattr(self, 'device') and self.device.type == 'cuda':
-                torch.cuda.synchronize(self.device)
-            else:
-                torch.cuda.synchronize()
-                
-            self._bench_time += self._bench_start_event.elapsed_time(self._bench_end_event) / 1000
+            self._bench_clock.start()
+            result = func(self, *args, **kwargs)
+            self._bench_time += self._bench_clock.stop()
             return result
 
         return timeit_wrapper
@@ -174,16 +189,12 @@ class BenchModel(nn.Module):
         for dists in self.min_dist.values():
             dists.masked_fill_(self.ori_success, 0)  # replace minimum distances with 0 for already adversarial inputs
 
-        # timing objects - create events on the correct device
-        with torch.cuda.device(self.device):
-            self._attack_start_event = torch.cuda.Event(enable_timing=True)
-            self._attack_end_event = torch.cuda.Event(enable_timing=True)
-            self._bench_start_event = torch.cuda.Event(enable_timing=True)  # to account for BenchModel time spent tracking
-            self._bench_end_event = torch.cuda.Event(enable_timing=True)
+        # timing objects — CUDA events on GPU, wall clock on CPU
+        self._attack_clock = _Clock(self.device)
+        self._bench_clock = _Clock(self.device)  # time spent by BenchModel itself tracking
         self._benchmark_mode = True
         self._elapsed_time = None
         self._bench_time = 0
-        torch.cuda.synchronize()
         self.start_timing()
 
     def end_tracking(self) -> None:
@@ -249,20 +260,16 @@ class BenchModel(nn.Module):
                             self.min_dist[metric][u] = metric_func(orig_input, adv_input, dim=1).item()
 
     def start_timing(self) -> None:
-        self._attack_start_event.record()
+        self._attack_clock.start()
 
     def stop_timing(self) -> None:
-        self._attack_end_event.record()
-        torch.cuda.synchronize()
-        self._elapsed_time = self._attack_start_event.elapsed_time(
-            self._attack_end_event) / 1000  # times for cuda Events are in milliseconds
+        # Idempotent: track_optimization stops the clock as soon as the query budget runs
+        # out, and end_tracking stops it again at the end of the batch. Without this guard
+        # the second call would re-extend the measured attack time past the budget.
+        if self._elapsed_time is None:
+            self._elapsed_time = self._attack_clock.stop()
 
     @property
     def elapsed_time(self) -> float:
-        if self._elapsed_time is None:
-            self._attack_end_event.record()
-            torch.cuda.synchronize()
-            time = self._attack_start_event.elapsed_time(self._attack_end_event) / 1000
-        else:
-            time = self._elapsed_time
-        return time - self._bench_time
+        elapsed = self._attack_clock.stop() if self._elapsed_time is None else self._elapsed_time
+        return elapsed - self._bench_time

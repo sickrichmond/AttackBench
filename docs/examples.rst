@@ -299,29 +299,23 @@ matched regardless of ordering or size.
 W&B Caching
 ~~~~~~~~~~~~
 
-By default, ``run_attack()`` checks W&B for cached results before running:
+``run_attack()`` always executes the attack you pass it. Opt in to ``use_cached=True``
+to reuse results already published on W&B:
 
 .. code-block:: python
 
-   # Automatic caching (default: use_cached=True)
-   results = attackbench.run_attack(
-       model=model,
-       dataset=dataset,
-       attack=apgd,
-       threat_model='linf',
-       device=device
-   )
-   # If precompiled results exist on W&B, returns them immediately
-
-   # Disable caching to force re-running
    results = attackbench.run_attack(
        model=model,
        dataset=dataset,
        attack=apgd,
        threat_model='linf',
        device=device,
-       use_cached=False
+       use_cached=True
    )
+
+A cached artifact is only reused when its per-sample SHA-512 hashes match your samples
+exactly; on any mismatch (different subset, seed or preprocessing) a warning is emitted
+and the attack runs normally.
 
 Saving Results to Disk
 ----------------------
@@ -364,17 +358,15 @@ By default, ``run_attack()`` returns minimal data. Request additional metadata:
        dataset=dataset,
        attack=apgd,
        threat_model='linf',
-       device=device,
-       include_metadata=True
+       device=device
    )
 
-   # Now includes:
+   # Always included, no flag needed:
    # - original_predictions, adversarial_predictions
-   # - num_forwards, num_backwards (query counts)
-   # - times (execution time per sample)
-
-   # Note: 'hashes' (SHA-512 per image) are ALWAYS included in results,
-   # even without include_metadata=True, to support hash-based optimality.
+   # - num_forwards, num_backwards (query counts, capped by query_budget)
+   # - times (execution time per batch)
+   # - box_failures, batch_failures (attack failure indicators)
+   # - hashes (SHA-512 per image, for hash-based optimality matching)
 
 Multi-Model Evaluation
 ----------------------

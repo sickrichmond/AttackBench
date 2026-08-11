@@ -96,8 +96,11 @@ Contains the core ``run_attack()`` function. Key features:
   attack name/library) is automatically attached and extracted.
 - **BenchModel wrapping**: Models are automatically wrapped in ``BenchModel`` for
   query tracking and constraint enforcement.
-- **W&B caching**: If ``use_cached=True`` (default), checks W&B for existing
-  precompiled distances before running the attack.
+- **Query budget**: every attack is limited to ``query_budget`` forward+backward
+  propagations per sample (default 2000, the budget used in the paper). This is what
+  makes attacks comparable; pass ``query_budget=None`` to lift it.
+- **W&B caching**: With ``use_cached=True`` (off by default), checks W&B for existing
+  precompiled distances and reuses them only if their per-sample hashes match.
 - **SHA-512 hashing**: Computes a per-image hash on raw RGB values so that
   each sample is uniquely identifiable regardless of subset ordering.
 - **Minimal output**: Returns only essential data (distances, success flags,
@@ -178,13 +181,16 @@ The ``run_attack()`` function returns a dictionary with minimal raw data:
 - ``hashes``: SHA-512 hashes of each input image (computed on raw RGB values).
   Always included to enable hash-based matching with optimal distances.
 
-**Optional metadata** (when ``include_metadata=True``):
+**Diagnostics (also always returned):**
 
 - ``original_predictions``: Model predictions on clean inputs
 - ``adversarial_predictions``: Model predictions on adversarial inputs
 - ``num_forwards``: Forward pass count per sample
 - ``num_backwards``: Backward pass count per sample
-- ``times``: Execution time per sample
+- ``times``: Execution time per batch
+- ``box_failures``: The attack produced values outside ``[0, 1]`` (they get clipped)
+- ``batch_failures``: The attack raised an exception on that batch
+- ``query_budget``: The budget the run was executed under
 
 **Optional tensors** (when ``save_adversarial=True``):
 
