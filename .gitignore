@@ -155,7 +155,9 @@ dmypy.json
 #experiments and test results
 /bomn_results/
 /results_envelope/
-/scripts/
+# scratch experiments and their outputs stay local; the .py tools ship with the repo
+/scripts/*
+!/scripts/*.py
 
 # local configuration
 /compiled/
