@@ -24,15 +24,18 @@ def complementarity(atk1: np.ndarray, atk2: np.ndarray) -> float:
 
 def ensemble_gain(atk1: np.ndarray, atk2: np.ndarray) -> float:
     """
-    Compute ensemble gain: how much atk2 improves over atk1. From analysis/utils.py
+    Ensemble gain: fraction of samples that atk2 breaks and atk1 does not, i.e. what
+    adding atk2 to atk1 buys you.
+
+    Args:
+        atk1, atk2: per-sample success flags (1/True = the attack succeeded)
     """
-    n = len(atk1)
-    if n == 0:
+    atk1 = np.asarray(atk1).astype(bool)
+    atk2 = np.asarray(atk2).astype(bool)
+    if len(atk1) == 0:
         return 0.0
-    
-    # Count samples where atk2 succeeds but atk1 fails
-    gain_samples = ((atk2 == 0) & (atk1 == 1)).sum()
-    return float(gain_samples / n)
+
+    return float((atk2 & ~atk1).sum() / len(atk1))
 
 def analyze_attack_ensemble(attack_results: List[Dict[str, Any]], 
                           threat_model: str) -> Dict[str, Any]:

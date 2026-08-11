@@ -178,25 +178,28 @@ BoMN creates an ensemble by selecting the best attack result per sample:
        device=device
    )
 
-   # BoMN achieves the best possible performance
-   # by definition: LocalOpt = 1.0 for all samples
+   # BoMN is the lower envelope of the attacks you gave it, so it scores
+   # LocalOpt = 1.0 against *those* attacks. Against the W&B envelope — computed
+   # over every attack in the benchmark — it scores below 1.0 like anything else.
 
 BoMN represents an upper bound on attack performance given the set of attacks used.
 
 Ensemble Gain
 --------------
 
-Measure the improvement from using multiple attacks together:
+Measure what a second attack adds to a first one — the fraction of samples it breaks
+and the other does not:
 
 .. code-block:: python
 
+   import numpy as np
+
    gain = attackbench.ensemble_gain(
-       individual_results=[results_pgd, results_apgd, results_fab],
-       bomn_results=results_bomn,
-       threat_model='linf'
+       np.array(results_pgd['adv_success']),
+       np.array(results_apgd['adv_success']),
    )
 
-   print(f"Ensemble gain over best individual: {gain:.2%}")
+   print(f"Samples APGD breaks that PGD does not: {gain:.2%}")
 
 Comparing Attacks
 -----------------
