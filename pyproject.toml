@@ -48,6 +48,9 @@ attacks = [
 
 # AdvLib is not on PyPI, but its implementations are among the top-ranked ones in the
 # AttackBench paper — installing without it leaves you with the weaker re-implementations.
+# Needs a prepared environment, see the note in the README: adv-lib depends on visdom,
+# whose setup.py imports pkg_resources (dropped by setuptools 81+), so visdom must be
+# built first with `pip install "setuptools<81" wheel && pip install --no-build-isolation visdom`.
 adv_lib = [
     "adv-lib @ git+https://github.com/jeromerony/adversarial-library",
 ]

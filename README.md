@@ -91,11 +91,16 @@ pip install "attackbenchlib[all]"
 > **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not on PyPI, so it is not
 > part of `[all]`. Its implementations are among the top-ranked ones in the AttackBench
 > paper, so installing without it leaves you with weaker re-implementations of the same
-> attacks — install it with the dedicated extra (or by hand):
+> attacks. It needs two extra steps: `adv-lib` depends on `visdom`, whose `setup.py`
+> imports `pkg_resources`, which setuptools 81+ no longer ships — so `visdom` has to be
+> built against an older setuptools first:
 > ```bash
+> pip install "setuptools<81" wheel
+> pip install --no-build-isolation visdom
 > pip install "attackbenchlib[adv_lib]"
-> # equivalently: pip install git+https://github.com/jeromerony/adversarial-library
 > ```
+> Without `adv-lib` installed, its attacks are simply absent from `list_attacks()`
+> instead of failing when you try to build them.
 
 > **Note on `deeprobust`:** Requires `scipy<1.8.0` and only works on Python 3.9:
 > `pip install "attackbenchlib[deeprobust]"`
