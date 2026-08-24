@@ -143,8 +143,10 @@ dmypy.json
 /data/
 /models/
 
-# test notebooks
+# scratch notebooks stay local; the tutorial ships with the repo so that it is
+# versioned together with the library it demonstrates
 *.ipynb
+!examples/*.ipynb
 
 # DB stuff
 /wandb/

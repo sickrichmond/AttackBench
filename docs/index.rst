@@ -11,7 +11,7 @@ kinds of analysis possible through a single library.
 
 **PyPI**: https://pypi.org/project/attackbenchlib/
 
-**Tutorial Notebook**: `Open in Google Colab <https://colab.research.google.com/drive/1rzzLRjMovcns25qOeEXt15R3L2Md_Pst?usp=sharing>`_
+**Tutorial Notebook**: `Open in Google Colab <https://colab.research.google.com/github/sickrichmond/AttackBench/blob/main/examples/AttackBenchLib.ipynb>`_
 
 Overview
 --------
