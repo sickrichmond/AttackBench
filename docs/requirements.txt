@@ -6,7 +6,6 @@ sphinx-rtd-theme>=2.0.0
 sphinx-autodoc-typehints>=1.19.0
 myst-parser>=2.0.0
 
-# Core dependencies needed for documentation build
+# Core dependency needed for the build: numpy is the only third-party module the
+# package imports at import time that conf.py does not mock.
 numpy>=1.21.0
-matplotlib>=3.5.1
-pandas>=1.4.0
