@@ -16,8 +16,9 @@ First, import the required modules and set up your environment:
    # Setup device
    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-   # Load a pre-trained model (requires attackbench[models])
-   model = attackbench.get_model('Standard')
+   # Load a pre-trained model (requires attackbenchlib[models])
+   # Keys of the model registry are lowercase: 'standard', 'carmon_2019', ...
+   model = attackbench.get_model('standard')
    model.to(device)
 
    # Load dataset (deterministic: same seed returns the same subset)
@@ -64,7 +65,11 @@ AttackBenchLib ships with preconfigured attacks that are ready to use out of the
    stats = attackbench.get_stats(results, 'linf')
 
    print(f"Attack Success Rate: {stats['ASR']*100:.1f}%")
-   print(f"Model Accuracy: {stats['accuracy']*100:.1f}%")
+   print(f"Clean accuracy:      {stats['accuracy']*100:.1f}%")
+
+The attack ran under the protocol's query budget (2000 forward+backward propagations per
+sample). ``results['distances']`` holds the smallest perturbation found *during* the
+optimization, which is what the optimality metric is computed on — see :doc:`optimality`.
 
 Available preconfigured attacks:
 
@@ -164,14 +169,18 @@ Analyzing Results
        threat_model='linf'
    )
 
-Using the Command Line
-----------------------
+Checking a Run Against the Protocol
+-----------------------------------
 
-AttackBenchLib provides a CLI entry point for running attacks:
+``scripts/paper_acceptance.py`` in the repository runs one or more attacks under the
+paper's conditions and prints them with the columns of Table I, flagging protocol
+violations (budget exceeded, attacks that raise, adversarials outside ``[0, 1]``, ASR
+far below 100%):
 
 .. code-block:: bash
 
-   run_attack --help
+   python scripts/paper_acceptance.py --model standard --dataset cifar10 \
+       --threat-model l2 --attacks original:fmn adv_lib:fmn --reference ensemble
 
 Next Steps
 ----------

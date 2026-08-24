@@ -1,16 +1,20 @@
 """
 Original AttackBench attacks - directly importable.
 
-Usage:
+Usage::
+
     from attackbench.attacks import pgd, fgsm, apgd, fab, fmn
-    
-    # Use directly
+
     results = attackbench.run_attack(
         model=model,
         dataset=dataset,
-        attack=pgd,  # Direct import
-        threat_model='linf'
+        attack=pgd,
+        threat_model='linf',
     )
+
+The FixedBudget attacks among these (pgd, fgsm, apgd, fab) take their perturbation
+budget from the threat model requested at run time; pass ``epsilon=`` to run_attack()
+to override it.
 """
 
 # Import dalla tua implementazione original

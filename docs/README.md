@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # AttackBench Documentation
 
 This directory contains the Sphinx documentation for AttackBench.

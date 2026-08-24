@@ -7,13 +7,15 @@ adversarial attack benchmarking framework.
 Overview
 --------
 
-The framework follows a five-stage evaluation process:
+The framework follows the five stages of the AttackBench paper:
 
-1. **Model Selection**: Select diverse robust and non-robust models
-2. **Attack Execution**: Run attacks in a standardized environment
-3. **Local Optimality**: Compute local optimality metrics
-4. **Results Aggregation**: Aggregate results across models
-5. **Global Ranking**: Rank attacks by global optimality
+1. **Model Zoo**: a diverse pool of robust and non-robust models
+2. **Attack Benchmarking**: every attack runs against every model under the same query
+   budget, recording the best perturbation found rather than the last iterate
+3. **Local Optimality**: how close each attack gets to the best empirical attack on a
+   given model
+4. **Global Optimality**: the average of local optimality across the model zoo
+5. **Ranking**: attacks ranked by global optimality, grouped by threat model
 
 Package Structure
 -----------------
@@ -23,9 +25,8 @@ Package Structure
    attackbench/
    ├── __init__.py              # Public API with lazy imports
    ├── run.py                   # Core run_attack() function
-   ├── custom_components.py     # create_custom_attack(), create_iterative_attack()
-   ├── preconfigured.py         # Pre-instantiated attacks (pgd, fgsm, apgd, etc.)
-   ├── compat.py                # NumPy compatibility layer
+   ├── custom_components.py     # create_custom_attack()
+   ├── preconfigured.py         # Ready-made attacks (pgd, fgsm, apgd, etc.)
    ├── adv_lib_sub.py           # Internal distance metrics and utilities
    ├── attacks/                 # Attack wrappers and registry system
    │   ├── registry.py          # get_attack(), list_attacks() - dynamic attack loading
@@ -54,6 +55,11 @@ Package Structure
    └── wandb/                   # W&B integration for results sharing
                                    # (precompiled & optimal distances)
 
+   scripts/
+   ├── paper_acceptance.py      # Run attacks under the paper's protocol and report
+   └── check_config_equivalence.py
+   tests/                       # CPU test suite (pytest)
+
 Core Modules
 ------------
 
@@ -66,16 +72,19 @@ PEP 562 lazy imports to keep the base installation lightweight:
 - **Always available** (core):
   - ``run_attack()``: Execute attacks and collect raw results
   - ``create_custom_attack()``: Wrap user-defined attack functions
-  - ``get_model()``: Load a model from the model registry
   - ``get_loader()``: Load a dataset as a DataLoader
+  - ``DEFAULT_QUERY_BUDGET``: the protocol's budget (2000)
+
+- **Requires** ``attackbenchlib[models]``:
+  - ``get_model()``: Load a model from the model registry
   - ``load_model()``: Load a RobustBench model with metadata
 
-- **Requires** ``attackbench[attacks]``:
+- **Requires** ``attackbenchlib[attacks]``:
   - ``get_attack()``: Instantiate library attacks dynamically
   - ``list_attacks()``: Discover available attacks
   - ``bomn_attack()``: Best-of-MinNorm composite attack
 
-- **Requires** ``attackbench[metrics]``:
+- **Requires** ``attackbenchlib[metrics]``:
   - ``get_stats()``: Compute statistics from attack results
   - ``compute_local_optimality()``, ``compute_global_optimality()``: Optimality metrics
   - ``create_attack_leaderboard()``, ``format_leaderboard()``: Ranking utilities
@@ -84,7 +93,7 @@ PEP 562 lazy imports to keep the base installation lightweight:
 - **W&B integration** (always available, requires wandb):
   - ``upload_precompiled_distances()``, ``download_precompiled_distances()``
   - ``upload_optimal_distances()``, ``download_optimal_distances()``
-  - ``list_available_distances()``
+  - ``update_optimal_distances()``: fold a run into the published lower envelope (stage 5)
 
 run.py
 ~~~~~~
@@ -103,8 +112,11 @@ Contains the core ``run_attack()`` function. Key features:
   precompiled distances and reuses them only if their per-sample hashes match.
 - **SHA-512 hashing**: Computes a per-image hash on raw RGB values so that
   each sample is uniquely identifiable regardless of subset ordering.
-- **Minimal output**: Returns only essential data (distances, success flags,
-  hashes). Use ``get_stats()`` for analysis.
+- **Raw output**: Returns per-sample data only — distances, success flags, hashes,
+  query counts and failure indicators. Use ``get_stats()`` for the statistics.
+- **Untargeted**: like the paper's evaluation, attacks are run against the untargeted
+  objective; the ``targets``/``targeted`` arguments exist for attacks that require them
+  in their signature.
 
 custom_components.py
 ~~~~~~~~~~~~~~~~~~~~
@@ -113,8 +125,6 @@ Utilities for integrating user-defined attacks:
 
 - ``create_custom_attack()``: Wraps a user function with input validation,
   output processing, and constraint enforcement (e.g., clamping to [0, 1]).
-- ``create_iterative_attack()``: Builds an iterative attack from a gradient
-  step function, with norm-aware projection for ``linf``, ``l2``, ``l1``, ``l0``.
 
 preconfigured.py
 ~~~~~~~~~~~~~~~~
@@ -149,7 +159,8 @@ All attack implementations follow a standardized interface:
 - ``model``: ``nn.Module`` taking inputs in [0, 1] and returning logits
 - ``inputs``: ``FloatTensor`` representing input samples in [0, 1]
 - ``labels``: ``LongTensor`` representing true labels
-- ``targets``: ``LongTensor`` or ``None`` for targeted attacks
+- ``targets``: ``LongTensor`` or ``None`` for targeted attacks (``run_attack()``
+  evaluates the untargeted objective, so it passes ``None``/``False``)
 - ``targeted``: ``bool`` flag for targeted mode
 
 **Output:**

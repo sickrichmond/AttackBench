@@ -1,16 +1,22 @@
 """
 AttackBench - A Python package for benchmarking adversarial attacks.
 
-Usage:
+Usage::
+
     import attackbench
 
     results = attackbench.run_attack(model, dataset, attack, 'linf', device)
     stats = attackbench.get_stats(results, 'linf')
 
-Optional subpackages:
-    - attacks: pip install attackbenchlib[attacks]  (adversarial attack libraries)
-    - metrics: pip install attackbenchlib[metrics]  (analysis & evaluation tools)
-    Both are optional and independent of each other.
+Attacks run under a query budget of DEFAULT_QUERY_BUDGET forward+backward propagations
+per sample, and ``results['distances']`` holds the smallest perturbation found during
+the optimization — the two things that make runs comparable with the AttackBench paper.
+
+Optional subpackages, independent of each other:
+
+- ``attacks``: ``pip install attackbenchlib[attacks]`` (adversarial attack libraries)
+- ``models``: ``pip install attackbenchlib[models]`` (RobustBench model zoo)
+- ``metrics``: ``pip install attackbenchlib[metrics]`` (analysis & evaluation tools)
 """
 
 import importlib

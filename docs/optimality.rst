@@ -6,11 +6,37 @@ AttackBenchLib introduces local and global optimality metrics for comparing adve
 Overview
 --------
 
-Traditional metrics like Attack Success Rate (ASR) don't capture how optimal the generated
-adversarial examples are. AttackBenchLib addresses this by:
+Attack Success Rate at a single perturbation budget does not say how far an attack is
+from the best achievable solution, and it depends on the budget you happen to pick.
+AttackBench compares attacks over their whole *robustness evaluation curve* instead:
 
-1. **Local Optimality**: Comparing attacks on individual model-sample pairs
-2. **Global Optimality**: Aggregating optimality across models and samples
+1. **Local optimality** (:math:`\xi^i_{\theta}`): how close attack :math:`a^i` gets to the
+   best empirical solution on one model :math:`\theta`
+2. **Global optimality** (:math:`\xi^i`): the average of local optimality over a set of
+   models, which is what the leaderboard ranks
+
+Robustness evaluation curve
+---------------------------
+
+For an attack :math:`a` on a model :math:`\theta`, the Attack Success Rate at a
+perturbation budget :math:`\varepsilon` counts the samples the attack misclassifies
+within that budget:
+
+.. math::
+
+   \text{ASR}_a(\varepsilon) = \frac{1}{|\mathcal{D}|}
+   \sum_{(\mathbf{x}, y) \in \mathcal{D}} \mathbb{I}(d_{\mathbf{x}} \leq \varepsilon)
+
+where :math:`d_{\mathbf{x}} = \lVert \mathbf{x}_{\text{adv}} - \mathbf{x} \rVert_p` is the
+size of the perturbation the attack found for that sample. The **robust accuracy curve**
+is its complement, :math:`\rho_a(\varepsilon) = 1 - \text{ASR}_a(\varepsilon)`, and the
+area under it summarises the attack over every budget at once:
+
+.. math::
+
+   \text{AUREC}_a(\varepsilon_0) = \int_0^{\varepsilon_0} \rho_a(\varepsilon)\,d\varepsilon
+
+A more effective attack pushes the curve towards the origin, so a *smaller* area is better.
 
 Local Optimality
 ----------------
@@ -18,26 +44,32 @@ Local Optimality
 Definition
 ~~~~~~~~~~
 
-For a given model and sample, the **local optimality** of an attack measures how close its
-perturbation is to the minimum possible perturbation.
-
-Given multiple attacks :math:`A_1, A_2, \ldots, A_n` and their generated perturbation
-distances :math:`d_1, d_2, \ldots, d_n`, the best (minimum) distance is:
-
-.. math::
-
-   d_{\text{best}} = \min(d_1, d_2, \ldots, d_n)
-
-The local optimality of attack :math:`A_i` is:
+Areas are not comparable across models, since each model starts from its own clean
+accuracy. Local optimality normalises them against the best empirical attack
+:math:`a^{\star}` — obtained by taking, for every sample, the smallest perturbation found
+by *any* attack in the benchmark:
 
 .. math::
 
-   \text{LocalOpt}(A_i) = \frac{d_{\text{best}}}{d_i}
+   \xi^i_{\theta} = \frac{\rho \cdot \varepsilon_0 - \text{AUREC}_{a^i}(\varepsilon_0)}
+                          {\rho \cdot \varepsilon_0 - \text{AUREC}_{a^{\star}}(\varepsilon_0)}
 
-where:
+where :math:`\rho` is the model's clean accuracy and :math:`\varepsilon_0` is the smallest
+budget at which the best attack drives robust accuracy to zero,
+:math:`\rho_{a^{\star}}(\varepsilon_0) = 0`. The box :math:`\rho \cdot \varepsilon_0` is the
+area of an attack that never succeeds, which bounds the score in :math:`[0, 1]`:
 
-- :math:`\text{LocalOpt}(A_i) = 1.0` indicates optimal (smallest) perturbation
-- :math:`\text{LocalOpt}(A_i) < 1.0` indicates sub-optimal perturbation
+- :math:`\xi^i_{\theta} = 1` — the attack matches the best empirical solution on every sample
+- :math:`\xi^i_{\theta} = 0` — the attack never evades the model within :math:`\varepsilon_0`
+
+.. note::
+
+   Distances are taken from ``results['distances']``, which holds :math:`d^{\star}`: the
+   *smallest* perturbation found while the attack was running, not the sample the attack
+   returned last. Attacks are also run under a fixed query budget (2000 forward+backward
+   propagations per sample by default). Both are part of the protocol — see
+   :doc:`architecture` — and both change the numbers, so scores are only comparable
+   between runs that share them.
 
 Computing Local Optimality
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -95,22 +127,29 @@ subset of the dataset and still get correct optimality values:
    print(f"Optimality from get_stats: {stats['optimality']:.2%}")
    # Both methods return the same result
 
+.. warning::
+
+   The reference :math:`a^{\star}` must come from *other* attacks — passed in explicitly
+   or downloaded from W&B. If neither is available, ``get_stats()`` leaves the
+   ``optimality`` key out and explains why, rather than falling back on the attack's own
+   distances: comparing an attack with itself scores about 1.0 whatever it did.
+
 Global Optimality
 -----------------
 
 Definition
 ~~~~~~~~~~
 
-**Global optimality** aggregates local optimality across multiple models to provide
-an overall ranking of attacks.
-
-For attack :math:`A_i` evaluated on :math:`M` models:
+Local optimality is measured against one model, so an attack tuned for that model can
+score well without generalising. **Global optimality** averages it over a set of models
+:math:`\mathcal{M} = \{\theta_1, \ldots, \theta_M\}`:
 
 .. math::
 
-   \text{GlobalOpt}(A_i) = \frac{1}{M} \sum_{m=1}^{M} \overline{\text{LocalOpt}_m}(A_i)
+   \xi^i = \frac{1}{|\mathcal{M}|} \sum_{\theta_m \in \mathcal{M}} \xi^i_{\theta_m}
 
-where :math:`\overline{\text{LocalOpt}_m}(A_i)` is the mean local optimality on model :math:`m`.
+It is bounded in :math:`[0, 1]` like local optimality, and equals 1 only for an attack
+that finds the minimal perturbation of every sample on every model in the set.
 
 Computing Global Optimality
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -143,25 +182,34 @@ Computing Global Optimality
        use_wandb=False  # don't download from W&B
    )
 
-   # Create and display leaderboard
-   leaderboard = attackbench.create_attack_leaderboard(global_opt)
+   # A leaderboard is built from the raw results of several attacks, not from a
+   # global-optimality result: attack_name -> model_name -> results of run_attack()
+   leaderboard = attackbench.create_attack_leaderboard(
+       {
+           'PGD': pgd_results_per_model,
+           'APGD': apgd_results_per_model,
+           'FMN': fmn_results_per_model,
+       },
+       threat_model='linf'
+   )
    print(attackbench.format_leaderboard(leaderboard))
 
 Attack Leaderboard
 ------------------
 
-The leaderboard ranks attacks by their global optimality score:
+The leaderboard ranks attacks by their global optimality score, grouped by the
+:math:`\ell_p` threat model they assume (illustrative shape, not measured values):
 
 .. code-block:: text
 
    Rank  Attack    Global Optimality
    ----  ------    -----------------
-   1     FAB-T     0.987
-   2     APGD      0.964
-   3     PGD       0.845
-   4     FGSM      0.623
+   1     ...       0.9xx
+   2     ...       0.9xx
+   3     ...       0.8xx
 
-The official leaderboard is available at: https://attackbench.github.io/
+For the published rankings see the leaderboard at https://attackbench.github.io/ and
+Table I of the paper.
 
 Best-of-MinNorm (BoMN)
 ----------------------
@@ -213,14 +261,11 @@ Compare multiple attacks with a comprehensive summary:
        threat_model='linf'
    )
 
-   # Compare optimality across attacks
+   # Compare optimality across attacks: a list of results plus their names
    opt_comparison = attackbench.compare_attacks_optimality(
-       attack_results={
-           'PGD': results_pgd,
-           'APGD': results_apgd,
-           'FAB': results_fab
-       },
-       threat_model='linf'
+       [results_pgd, results_apgd, results_fab],
+       threat_model='linf',
+       attack_names=['PGD', 'APGD', 'FAB']
    )
 
 Use Cases

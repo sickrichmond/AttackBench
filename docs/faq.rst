@@ -7,14 +7,14 @@ General Questions
 -----------------
 
 What is AttackBenchLib?
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 AttackBenchLib is a Python library that implements the **AttackBench** framework for
 fairly evaluating and comparing gradient-based adversarial attacks.
 It provides standardized implementations, optimality metrics, and benchmarking tools.
 
 Why use AttackBenchLib?
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 - **Fair Comparison**: All attacks run in the same environment with consistent settings
 - **Optimality Metrics**: Beyond ASR, measure how close attacks are to optimal perturbations
@@ -27,8 +27,8 @@ How is this different from existing benchmarks?
 
 AttackBenchLib focuses on:
 
-1. **Local Optimality**: Comparing attacks on individual samples
-2. **Global Optimality**: Ranking attacks across multiple models
+1. **Local Optimality**: How close an attack gets to the best empirical solution on one model
+2. **Global Optimality**: The same, averaged over a set of models, which is what ranks attacks
 3. **Implementation Comparison**: Same attack algorithm from different libraries
 4. **Comprehensive Metrics**: Beyond just success rate
 
@@ -40,7 +40,7 @@ What Python and PyTorch versions are supported?
 
 AttackBenchLib supports:
 
-- Python >= 3.9, < 3.13
+- Python >= 3.9
 - PyTorch >= 2.4
 - TorchVision >= 0.19
 
@@ -73,11 +73,19 @@ AttackBenchLib uses lazy imports. If you see an error like
 How do I install adv-lib?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``adv-lib`` (Adversarial Library) is not available on PyPI. Install it manually:
+``adv-lib`` (Adversarial Library) is not on PyPI, and it depends on ``visdom``, whose
+``setup.py`` imports ``pkg_resources`` — removed from setuptools 81+. Build ``visdom``
+against an older setuptools first:
 
 .. code-block:: bash
 
-   pip install git+https://github.com/jeromerony/adversarial-library
+   pip install "setuptools<81" wheel
+   pip install --no-build-isolation visdom
+   pip install "attackbenchlib[adv_lib]"
+
+Its implementations rank among the best in the paper, so a benchmark run without it
+compares weaker re-implementations of the same attacks. When it is absent, its attacks
+simply do not appear in ``list_attacks()``.
 
 How do I install deeprobust?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,7 +161,7 @@ How do I load models?
 .. code-block:: python
 
    # Via AttackBenchLib's model registry
-   model = attackbench.get_model('Standard')
+   model = attackbench.get_model('standard')
 
    # Via RobustBench with auto-metadata
    model = attackbench.load_model('Standard', dataset='cifar10', threat_model='Linf')
@@ -180,6 +188,27 @@ broken attack from a robust model. Use ``save_adversarial=True`` to also get the
 adversarial tensors.
 
 For statistics, pass results to ``attackbench.get_stats(results, threat_model)``.
+
+What is the query budget?
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every attack is limited to a maximum number of forward + backward propagations per
+sample — 2000 by default, the budget used in the paper. It is what makes attacks
+comparable: without it, an attack that runs more iterations or more restarts looks
+better simply for spending more compute.
+
+.. code-block:: python
+
+   # the default, i.e. the paper's protocol
+   results = attackbench.run_attack(model, dataset, attack, 'linf', query_budget=2000)
+
+   # lift the limit for debugging or exploratory runs (not comparable with the leaderboard)
+   results = attackbench.run_attack(model, dataset, attack, 'linf', query_budget=None)
+
+Once a sample runs out of budget its queries stop counting and the model stops
+responding to them, so the attack keeps its best result up to that point.
+``results['num_forwards']`` and ``results['num_backwards']`` report what was actually
+spent per sample.
 
 Performance Questions
 ---------------------
@@ -210,21 +239,39 @@ Results and Analysis
 What is Attack Success Rate (ASR)?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-ASR is the percentage of correctly classified samples that were successfully
-misclassified by the attack:
+ASR is the fraction of the evaluated samples that end up misclassified within a
+perturbation budget :math:`\varepsilon`:
 
 .. math::
 
-   \text{ASR} = \frac{\text{\# successful attacks}}{\text{\# originally correct}} \times 100\%
+   \text{ASR}_a(\varepsilon) = \frac{1}{|\mathcal{D}|}
+   \sum_{(\mathbf{x}, y) \in \mathcal{D}} \mathbb{I}(d_{\mathbf{x}} \leq \varepsilon)
+
+``stats['ASR']`` reports it at :math:`\varepsilon = \infty`, i.e. the share of samples the
+attack misclassifies at any perturbation size. The denominator is the whole evaluated
+set, so samples the model already got wrong count as successes (their distance is 0) —
+that is why ``stats['accuracy']``, the clean accuracy, is reported next to it.
+
+An ASR well below 100% at :math:`\varepsilon = \infty` is a red flag: the paper treats it
+as a sign that the attack is being applied incorrectly rather than as a property of the
+model. Check ``results['batch_failures']`` and ``results['box_failures']`` first.
 
 How is optimality computed?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Local optimality compares attacks per sample:
+Local optimality compares the *area under the robust accuracy curve* of an attack with
+the area of the best empirical attack :math:`a^{\star}` (the per-sample minimum over every
+attack in the benchmark), normalised by the area of an attack that never succeeds:
 
 .. math::
 
-   \text{Optimality} = \frac{\text{best distance among all attacks}}{\text{this attack's distance}}
+   \xi^i_{\theta} = \frac{\rho \cdot \varepsilon_0 - \text{AUREC}_{a^i}(\varepsilon_0)}
+                          {\rho \cdot \varepsilon_0 - \text{AUREC}_{a^{\star}}(\varepsilon_0)}
+
+with :math:`\rho` the clean accuracy and :math:`\varepsilon_0` the budget at which
+:math:`a^{\star}` reaches zero robust accuracy. It is a curve-level measure, not a
+per-sample ratio: an attack scores 1.0 only by matching :math:`a^{\star}` across the whole
+range of budgets.
 
 Optimal distances are stored on W&B as **hash-based lookup tables**
 (``{sha512_hash: distance}``), computed over the full dataset using all
@@ -290,7 +337,7 @@ You can also pass metadata explicitly (e.g. for custom attacks):
    )
 
 Can I use AttackBenchLib offline?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Yes. ``use_cached=False`` is the default, so ``run_attack()`` never contacts W&B
 unless you ask it to. All core functionality works locally.
@@ -333,7 +380,7 @@ Citation
 --------
 
 How do I cite AttackBenchLib?
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bibtex
 

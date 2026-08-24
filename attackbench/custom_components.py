@@ -20,27 +20,24 @@ def create_custom_attack(
     Returns:
         Attack function compatible with AttackBench
         
-    Example:
+    Example::
+
         def my_custom_pgd(model, inputs, labels, eps=0.1, steps=10):
-            # User's custom implementation
             adv_inputs = inputs.clone()
             for i in range(steps):
                 adv_inputs.requires_grad_(True)
                 outputs = model(adv_inputs)
                 loss = F.cross_entropy(outputs, labels)
                 grad = torch.autograd.grad(loss, adv_inputs)[0]
-                adv_inputs = adv_inputs + eps/steps * grad.sign()
+                adv_inputs = adv_inputs + eps / steps * grad.sign()
                 adv_inputs = torch.clamp(adv_inputs, 0, 1)
             return adv_inputs
-        
+
         custom_attack = create_custom_attack(my_custom_pgd, attack_name="MyPGD")
-        
-        results = attackbench.run_attack(
-            model='Carmon2019Unlabeled',
-            dataset='cifar10',
-            attack=custom_attack,
-            threat_model='linf'
-        )
+
+        model = attackbench.get_model('carmon_2019')
+        dataset = attackbench.get_loader('cifar10', num_samples=1000)
+        results = attackbench.run_attack(model, dataset, custom_attack, 'linf')
     """
     
     def wrapped_attack(model, inputs, labels, **kwargs):

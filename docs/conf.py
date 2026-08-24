@@ -20,10 +20,8 @@ MOCK_MODULES = [
     'torch', 'torch.nn', 'torch.nn.functional', 'torch.optim', 'torch.utils',
     'torch.utils.data', 'torchvision', 'torchvision.transforms', 'torchvision.datasets',
     'torchvision.models', 'foolbox', 'robustbench', 'cleverhans', 'deeprobust',
-    'art', 'art.attacks', 'art.estimators', 'torchattacks', 'adv_lib',
-    'timm', 'transformers', 'pretrainedmodels', 'wandb',
-    'sklearn', 'seaborn', 'plotly', 'scipy', 'scipy.spatial',
-    'tabulate', 'tqdm', 'wget',
+    'art', 'art.attacks', 'art.estimators', 'torchattacks', 'adv_lib', 'eagerpy',
+    'wandb', 'tqdm', 'PIL',
 ]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
@@ -34,8 +32,14 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 project = 'AttackBenchLib'
 copyright = '2026, Antonio Emanuele Cinà, Riccardo Trebiani'
 author = 'Antonio Emanuele Cinà , Jérôme Rony , Maura Pintor, Luca Demetrio, Ambra Demontis, Battista Biggio, Ismail Ben Ayed, Fabio Roli and Riccardo Trebiani'
-version = '1.0.0'
-release = '1.0.0'
+# Read from the installed package so the docs never drift from the release
+try:
+    from importlib.metadata import version as _pkg_version
+
+    release = _pkg_version('attackbenchlib')
+except Exception:  # building from a checkout without installing
+    release = '2.0.0'
+version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -72,12 +76,11 @@ language = 'en'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_static_path = ['../_static']
 
 html_theme_options = {
     'analytics_anonymize_ip': False,
     'logo_only': False,
-    'display_version': True,
     'prev_next_buttons_location': 'bottom',
     'style_external_links': False,
     'collapse_navigation': False,

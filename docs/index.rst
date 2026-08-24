@@ -19,16 +19,18 @@ Overview
 The AttackBench framework fairly compares gradient-based attacks based on their security
 evaluation curves through a five-stage process:
 
-1. **Model Selection**: Construct a list of diverse non-robust and robust models
-2. **Attack Execution**: Define a systematic environment for testing attacks
+1. **Model Zoo**: Construct a list of diverse non-robust and robust models
+2. **Attack Benchmarking**: Run every attack under the same query budget, keeping the
+   best perturbation found rather than the last iterate
 3. **Local Optimality**: Compare attacks using the novel local optimality metric
-4. **Results Aggregation**: Aggregate optimality results from all models
-5. **Global Ranking**: Rank attacks based on their average (global) optimality
+4. **Global Optimality**: Aggregate optimality results from all models
+5. **Ranking**: Rank attacks based on their average (global) optimality
 
 Features
 --------
 
-- Standardized evaluation protocol for adversarial attacks
+- Standardized evaluation protocol for adversarial attacks, with the paper's query
+  budget (2000 forward+backward propagations per sample) enforced by default
 - Preconfigured attacks (PGD, FGSM, APGD, FAB, FMN, DeepFool, SuperDeepFool, Trust Region)
 - Support for multiple attack libraries (ART, Foolbox, Torchattacks, CleverHans, adv-lib, DeepRobust)
 - Local and global optimality metrics

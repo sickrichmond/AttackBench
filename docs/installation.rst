@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-- Python >= 3.9, < 3.13
+- Python >= 3.9
 - PyTorch >= 2.4
 - TorchVision >= 0.19
 - CUDA compatible GPU (recommended)
@@ -20,9 +20,9 @@ Install the base package from PyPI:
 
 .. note::
 
-   The base installation includes core dependencies (torch, torchvision, matplotlib, pandas,
-   scipy, numpy, tqdm, wandb). This is enough to run attacks using the built-in
-   preconfigured attacks and analyze results.
+   The base installation includes core dependencies (torch, torchvision, numpy, tqdm,
+   wandb). This is enough to run the built-in preconfigured attacks and analyze the
+   results.
 
    The Python import name remains ``attackbench``:
 
@@ -45,12 +45,18 @@ Install all supported attack library wrappers (ART, Foolbox, Torchattacks, Cleve
 
 .. note::
 
-   ``adv-lib`` (Adversarial Library) is not available on PyPI. If you need adv-lib attacks,
-   install it separately from its GitHub repository:
+   ``adv-lib`` (Adversarial Library) is not on PyPI, and it depends on ``visdom``, whose
+   ``setup.py`` imports ``pkg_resources`` — removed from setuptools 81+. Build ``visdom``
+   against an older setuptools first:
 
    .. code-block:: bash
 
-      pip install git+https://github.com/jeromerony/adversarial-library
+      pip install "setuptools<81" wheel
+      pip install --no-build-isolation visdom
+      pip install "attackbenchlib[adv_lib]"
+
+   The paper ranks AdvLib's implementations among the best, so an installation without it
+   benchmarks weaker re-implementations of the same attacks.
 
    ``deeprobust`` requires ``scipy<1.8.0`` and is incompatible with Python >= 3.10.
    Install it separately on Python 3.9 only:
@@ -61,7 +67,8 @@ Install all supported attack library wrappers (ART, Foolbox, Torchattacks, Cleve
 
 **Models**
 
-Install model loading utilities (RobustBench, timm, transformers, pretrainedmodels):
+Install model loading utilities (RobustBench, Pillow; RobustBench pulls in
+whatever a given model needs, such as timm):
 
 .. code-block:: bash
 
@@ -79,7 +86,8 @@ Install model loading utilities (RobustBench, timm, transformers, pretrainedmode
 
 **Metrics**
 
-Install analysis and visualization tools (scikit-learn, seaborn, plotly, tabulate):
+Enable the analysis subpackage (its code only needs numpy, already a core dependency,
+so the extra is empty and exists to keep the install command valid):
 
 .. code-block:: bash
 
@@ -114,7 +122,7 @@ Google Colab
 
 On Google Colab, use the following installation commands:
 
-.. code-block:: python
+.. code-block:: text
 
    !pip install "attackbenchlib[models,attacks]" -q
    !pip install git+https://github.com/fra31/auto-attack -q  # required for RobustBench

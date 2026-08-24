@@ -23,7 +23,7 @@ any external attack library:
    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
    # Load model and dataset
-   model = attackbench.get_model('Standard')
+   model = attackbench.get_model('standard')
    model.to(device)
 
    dataset = attackbench.get_loader(
@@ -42,15 +42,15 @@ any external attack library:
        device=device
    )
 
-   # Analyze results (requires attackbench[metrics])
+   # Analyze results (requires attackbenchlib[metrics])
    stats = attackbench.get_stats(results, 'linf')
-   print(f"ASR: {stats['asr']*100:.1f}%")
+   print(f"ASR: {stats['ASR']*100:.1f}%")
 
 Using Library Attacks
 ---------------------
 
 Use attacks from external libraries via the dynamic attack loading system
-(requires ``attackbench[attacks]``):
+(requires ``attackbenchlib[attacks]``):
 
 .. code-block:: python
 
@@ -169,8 +169,10 @@ Run multiple attacks and select the best result per sample:
        device=device
    )
 
-   # BoMN selects the minimum-distance successful adversarial per sample
-   # By definition, it achieves LocalOpt = 1.0 for all samples
+   # BoMN keeps, for each sample, the smallest perturbation any of its components found.
+   # It is the lower envelope of *those* attacks, so it scores 1.0 against them; against
+   # the benchmark-wide envelope on W&B it scores below 1.0 like any other attack.
+   # Every component runs through run_attack, so the query budget applies to each of them.
 
    # Analyze which attack won for each sample
    import numpy as np
@@ -208,7 +210,7 @@ Comparing Multiple Attacks
            device=device
        )
 
-   # Compare attacks (requires attackbench[metrics])
+   # Compare attacks (requires attackbenchlib[metrics])
    comparison = attackbench.compare_attacks(
        list(all_results.values()),
        threat_model='linf'
@@ -259,17 +261,15 @@ Upload and Download Attack Results
        attack_lib='foolbox'
    )
 
-   # Download precompiled distances from W&B
+   # Download precompiled distances from W&B (attack_lib identifies the implementation)
    distances = attackbench.download_precompiled_distances(
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard',
        attack_name='pgd',
+       attack_lib='foolbox',
        n_samples=1000
    )
-
-   # List all available distances on W&B
-   available = attackbench.list_available_distances()
 
 Optimal Distances
 ~~~~~~~~~~~~~~~~~
@@ -288,13 +288,18 @@ matched regardless of ordering or size.
        model_name='Standard'
    )
 
-   # Upload optimal distances after computing them
+   # Upload an envelope you computed yourself
    attackbench.upload_optimal_distances(
-       optimal_distances=optimal,
+       optimal_data=optimal,
        dataset='cifar10',
        threat_model='linf',
        model_name='Standard'
    )
+
+   # Or fold one run into the published envelope: the per-hash minimum is taken
+   # against what is already there and the artifact is refreshed. This is stage 5 of
+   # the framework — adding an attack does not require re-running the previous ones.
+   attackbench.update_optimal_distances(results)
 
 W&B Caching
 ~~~~~~~~~~~~
@@ -375,10 +380,10 @@ Evaluate an attack across multiple models:
 
 .. code-block:: python
 
-   models_to_test = ['Standard', 'Carmon2019Unlabeled', 'Wong2020Fast']
+   models_to_test = ['standard', 'carmon_2019', 'wong_2020']
 
    for model_name in models_to_test:
-       model = attackbench.get_model(model_name)
+       model = attackbench.get_model(model_name)  # registry keys are lowercase
        model.to(device)
 
        results = attackbench.run_attack(
@@ -390,4 +395,4 @@ Evaluate an attack across multiple models:
        )
 
        stats = attackbench.get_stats(results, 'linf')
-       print(f"{model_name}: ASR={stats['asr']*100:.1f}%")
+       print(f"{model_name}: ASR={stats['ASR']*100:.1f}%")

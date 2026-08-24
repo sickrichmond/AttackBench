@@ -44,11 +44,19 @@ We follow PEP 8 guidelines. Use the provided tools:
 Testing
 -------
 
-Run the test suite:
+Run the test suite (CPU only, no network, seconds):
 
 .. code-block:: bash
 
    pytest
+
+To check a change against the benchmark protocol itself — query budget, best-iterate
+distances, failure indicators — use the acceptance script on a real model:
+
+.. code-block:: bash
+
+   python scripts/paper_acceptance.py --model standard --dataset cifar10 \
+       --threat-model l2 --attacks original:fmn adv_lib:fmn --reference ensemble
 
 Adding New Attacks
 ------------------
@@ -59,9 +67,19 @@ To add a new attack implementation:
    for native implementations)
 2. Implement the attack following the standard interface:
    ``(model, inputs, labels, targets=None, targeted=False, **kwargs) -> adv_inputs``
-3. Register the attack via a config/getter function in the library's submodule
+3. Register the attack with a config function returning a ``dict`` of its parameters and
+   a matching getter function — see ``attackbench/attacks/README.md`` for the template
 4. Add tests for your implementation
 5. Update the documentation
+
+.. note::
+
+   ``list_attacks()`` only advertises attacks it can actually build, so check that your
+   new attack shows up for every threat model it supports:
+
+   .. code-block:: python
+
+      attackbench.list_attacks(threat_model='l2', lib='<your library>')
 
 Adding New Models
 -----------------
