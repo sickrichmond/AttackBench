@@ -33,7 +33,7 @@ def delta_init(model, inputs, labels, device, starting_point=None, binary_search
     if starting_point is None:
         delta = torch.zeros_like(inputs, requires_grad=True, device=device)
     elif starting_point == 'adversarial':
-        fmodel = PyTorchModel(model, bounds=(0, 1))
+        fmodel = PyTorchModel(model, bounds=(0, 1), device=inputs.device)
         dataset_atk = DatasetAttack()
 
         dataset_atk.feed(fmodel, inputs)
@@ -83,7 +83,7 @@ def sigma_zero(model: torch.nn.Module,
             tensor.flatten(1) / tensor.flatten(1).norm(p=grad_norm, dim=1, keepdim=True).clamp_(min=1e-12)).view(
         tensor.shape)
 
-    device = next(model.parameters()).device
+    device = inputs.device
     batch_size, max_size = inputs.shape[0], torch.prod(torch.tensor(inputs.shape[1:]))
 
     delta = delta_init(model, inputs, labels, device, starting_point=starting_point,

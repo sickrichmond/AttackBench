@@ -54,6 +54,30 @@ def _fixed_budget(getter, name, **params):
     return attack
 
 
+def _minimum_norm(getter, name, norm_params=None, **params):
+    """Build a minimum-norm attack without importing optional dependencies eagerly."""
+    def attack(model, inputs, labels, threat_model='l2', targets=None,
+               targeted=False, **kwargs):
+        try:
+            configured_params = dict(params)
+            configured_params.update((norm_params or {}).get(threat_model, {}))
+            attack_fn = getter(threat_model=threat_model, **configured_params)
+        except ModuleNotFoundError as exc:
+            if exc.name in {'eagerpy', 'foolbox'}:
+                raise ImportError(
+                    f"The preconfigured {name.upper()} attack requires the 'attacks' "
+                    "extra: pip install 'attackbenchlib[attacks]'"
+                ) from exc
+            raise
+        return attack_fn(model=model, inputs=inputs, labels=labels,
+                         targets=targets, targeted=targeted, **kwargs)
+
+    attack.__name__ = name
+    attack._attackbench_name = name
+    attack._attackbench_lib = 'original'
+    return attack
+
+
 # Create attack instances with default parameters
 # Note: threat_model is NOT set here — it is injected at runtime
 # by run_attack() based on its threat_model parameter.
@@ -70,13 +94,11 @@ fab = _fixed_budget(get_original_fab, 'fab',
                     num_restarts=1, num_steps=100, alpha_max=0.1, eta=1.05, beta=0.9,
                     targeted_variant=False, n_target_classes=9)
 
-fmn = get_original_fmn(
-    num_steps=1000, 
-    max_step_size=10, 
-    gamma=0.05
+fmn = _minimum_norm(
+    get_original_fmn, 'fmn',
+    norm_params={'linf': {'max_step_size': 10}},
+    num_steps=1000, max_step_size=1, gamma=0.05,
 )
-fmn._attackbench_name = 'fmn'
-fmn._attackbench_lib = 'original'
 
 deepfool = get_original_deepfool(
     num_classes=10, 

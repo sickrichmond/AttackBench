@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Callable, Optional
 
-# adv_lib is optional (it is not on PyPI: pip install "attackbenchlib[adv_lib]").
+# adv_lib is optional and not on PyPI; install it manually from its source repository.
 # Let the ImportError propagate: the registry catches it and simply leaves this library
 # out. Substituting None placeholders here instead made the import succeed, so the
 # registry advertised adv_lib attacks that could never be built — get_attack() then died

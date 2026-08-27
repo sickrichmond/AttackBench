@@ -51,19 +51,19 @@ def deepfool(image, net, num_classes=10, overshoot=0.02, max_iter=50):
 
         pert = np.inf
         fs[0, I[0]].backward(retain_graph=True)
-        grad_orig = x.grad.data.cpu().numpy().copy()
+        grad_orig = x.grad.data.cpu().numpy().copy().squeeze(0)
 
         for k in range(1, num_classes):
             x.grad = None  # MODIFIED: zero_gradients(x)
 
             fs[0, I[k]].backward(retain_graph=True)
-            cur_grad = x.grad.data.cpu().numpy().copy()
+            cur_grad = x.grad.data.cpu().numpy().copy().squeeze(0)
 
             # set new w_k and new f_k
             w_k = cur_grad - grad_orig
             f_k = (fs[0, I[k]] - fs[0, I[0]]).data.cpu().numpy()
 
-            pert_k = abs(f_k) / np.linalg.norm(w_k.flatten())
+            pert_k = abs(f_k) / (np.linalg.norm(w_k.flatten()) + 1e-8)
 
             # determine which w_k to use
             if pert_k < pert:
@@ -72,16 +72,16 @@ def deepfool(image, net, num_classes=10, overshoot=0.02, max_iter=50):
 
         # compute r_i and r_tot
         # Added 1e-4 for numerical stability
-        r_i = (pert + 1e-4) * w / np.linalg.norm(w)
+        r_i = (pert + 1e-4) * w / (np.linalg.norm(w) + 1e-8)
         r_tot = np.float32(r_tot + r_i)
 
-        pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot).to(device)  # MODIFIED:...
+        pert_image = (image + (1 + overshoot) * torch.from_numpy(r_tot).to(device)).clamp(0, 1)
         # if is_cuda:
         #     pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot).cuda()
         # else:
         #     pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot)
 
-        x = Variable(pert_image, requires_grad=True)
+        x = Variable(pert_image[None, :], requires_grad=True)
         fs = net.forward(x)
         k_i = np.argmax(fs.data.cpu().numpy().flatten())
 
@@ -100,4 +100,4 @@ def deepfool_attack(model: nn.Module,
     adv_inputs = []
     for input in inputs:
         adv_inputs.append(deepfool(image=input, net=model, **kwargs)[-1])
-    return torch.cat(adv_inputs, dim=0)
+    return torch.stack(adv_inputs)

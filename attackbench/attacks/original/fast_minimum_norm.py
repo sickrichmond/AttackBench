@@ -422,7 +422,7 @@ def fmn_attack(model: nn.Module,
                targets: Optional[Tensor] = None,
                targeted: bool = False, **kwargs) -> Tensor:
     attack = _fmn_attacks[threat_model](**kwargs)
-    fb_model = PyTorchModel(model=model, bounds=(0, 1))
+    fb_model = PyTorchModel(model=model, bounds=(0, 1), device=inputs.device)
     if targeted:
         criterion = TargetedMisclassification(targets)
     else:

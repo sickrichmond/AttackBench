@@ -19,7 +19,7 @@ def foolbox_wrapper(attack: partial,
     if issubclass(attack.func, FixedEpsilonAttack):
         epsilon_kwarg['epsilon'] = attack_kwargs.pop('epsilon')
 
-    fb_model = PyTorchModel(model=model, bounds=(0, 1))
+    fb_model = PyTorchModel(model=model, bounds=(0, 1), device=inputs.device)
     fb_attack = partial(attack.func, **attack_kwargs)()
 
     if hasattr(fb_attack, 'feed'):

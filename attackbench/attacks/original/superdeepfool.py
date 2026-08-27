@@ -61,13 +61,13 @@ def superdeepfool(image, net, num_classes=10, overshoot=0.02, max_iter=50,
 
         pert = np.inf
         fs[0, I[0]].backward(retain_graph=True)
-        grad_orig = x.grad.data.cpu().numpy().copy()
+        grad_orig = x.grad.data.cpu().numpy().copy().squeeze(0)
 
         for k in range(1, num_classes):
             x.grad = None
 
             fs[0, I[k]].backward(retain_graph=True)
-            cur_grad = x.grad.data.cpu().numpy().copy()
+            cur_grad = x.grad.data.cpu().numpy().copy().squeeze(0)
 
             # Compute w_k and f_k
             w_k = cur_grad - grad_orig
@@ -95,10 +95,12 @@ def superdeepfool(image, net, num_classes=10, overshoot=0.02, max_iter=50,
         r_tot = np.float32(r_tot + r_i)
 
         # Apply perturbation
-        pert_image = image + (1 + current_overshoot) * torch.from_numpy(r_tot).to(device)
+        pert_image = (
+            image + (1 + current_overshoot) * torch.from_numpy(r_tot).to(device)
+        ).clamp(0, 1)
 
         # Forward pass with perturbed image
-        x = Variable(pert_image, requires_grad=True)
+        x = Variable(pert_image[None, :], requires_grad=True)
         fs = net.forward(x)
         k_i = np.argmax(fs.data.cpu().numpy().flatten())
 

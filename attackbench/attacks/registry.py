@@ -13,6 +13,7 @@ from .torchattacks import configs as torchattacks_configs
 
 try:
     from .adv_lib import configs as adv_lib_configs
+
     _has_adv_lib = True
 except ImportError:  # pragma: no cover - optional dependency
     adv_lib_configs = None
@@ -20,24 +21,25 @@ except ImportError:  # pragma: no cover - optional dependency
 
 try:
     from .deeprobust import configs as deeprobust_configs
+
     _has_deeprobust = True
 except ImportError:  # pragma: no cover - optional dependency
     deeprobust_configs = None
     _has_deeprobust = False
 
 library_modules = {
-    'art': art_configs,
-    'cleverhans': cleverhans_configs,
-    'foolbox': foolbox_configs,
-    'original': original_configs,
-    'torchattacks': torchattacks_configs,
+    "art": art_configs,
+    "cleverhans": cleverhans_configs,
+    "foolbox": foolbox_configs,
+    "original": original_configs,
+    "torchattacks": torchattacks_configs,
 }
 
 if _has_adv_lib:
-    library_modules['adv_lib'] = adv_lib_configs
+    library_modules["adv_lib"] = adv_lib_configs
 
 if _has_deeprobust:
-    library_modules['deeprobust'] = deeprobust_configs
+    library_modules["deeprobust"] = deeprobust_configs
 
 # Build configuration and getter functions from modules
 attack_configs = defaultdict(dict)  # Store config functions
@@ -45,19 +47,23 @@ library_getters = defaultdict(dict)  # Store getter functions
 
 for module_name, module in library_modules.items():
     # Gather functions defined in <library>.configs modules
-    module_funcs = inspect.getmembers(sys.modules[module.__name__],
-                                     predicate=lambda f: inspect.isfunction(f) and f.__module__ == module.__name__)
+    module_funcs = inspect.getmembers(
+        sys.modules[module.__name__],
+        predicate=lambda f: inspect.isfunction(f) and f.__module__ == module.__name__,
+    )
 
     for name, func in module_funcs:  # Search for functions that are configs or getters
-        config_prefix = module._prefix + '_'
-        getter_prefix = 'get_' + config_prefix
+        config_prefix = module._prefix + "_"
+        getter_prefix = "get_" + config_prefix
 
         if name.startswith(config_prefix) and not name.startswith(getter_prefix):
             # This is a config function (e.g., adv_lib_pgd)
             attack_name = name.removeprefix(config_prefix)
             attack_configs[module_name][attack_name] = func
-            
-        elif name.startswith(getter_prefix):  # Capture getter function (e.g., get_adv_lib_pgd)
+
+        elif name.startswith(
+            getter_prefix
+        ):  # Capture getter function (e.g., get_adv_lib_pgd)
             attack_name = name.removeprefix(getter_prefix)
             library_getters[module_name][attack_name] = func
 
@@ -65,10 +71,10 @@ for module_name, module in library_modules.items():
 def list_attacks(threat_model: str = None, lib: str = None) -> list:
     """
     List all available attacks, optionally filtered by threat model and/or library.
-    
+
     Discovers attacks automatically from registered config modules — no external
     JSON file needed.
-    
+
     An attack is considered compatible with a threat model if:
       - It has a config function whose ``threat_model`` matches, OR
       - Its getter accepts a ``threat_model`` parameter (multi-norm attack) *and* it has
@@ -82,12 +88,12 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
                       If None, returns all attacks.
         lib: Filter by library name ('adv_lib', 'art', 'foolbox', etc.).
              If None, returns attacks from all libraries.
-    
+
     Returns:
         List of (library, attack_name) tuples for attacks that have a
         corresponding getter function and (optionally) match the requested
         threat model.
-    
+
     Examples:
         list_attacks()                           # all attacks
         list_attacks(threat_model='linf')        # linf attacks only
@@ -112,7 +118,7 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
 
             # 1) Scan config functions whose threat_model matches directly
             for config_name, config_func in attack_configs[lib_name].items():
-                cfg_tm = config_func().get('threat_model')
+                cfg_tm = config_func().get("threat_model")
 
                 if cfg_tm != threat_model:
                     continue
@@ -122,9 +128,9 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
                 if config_name in available_getters:
                     matched_getters.add(config_name)
                 else:
-                    for suffix in (f'_{threat_model}', '_NQ'):
+                    for suffix in (f"_{threat_model}", "_NQ"):
                         if config_name.endswith(suffix):
-                            candidate = config_name[:-len(suffix)]
+                            candidate = config_name[: -len(suffix)]
                             if candidate in available_getters:
                                 matched_getters.add(candidate)
                                 break
@@ -133,8 +139,10 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
             #    with any norm it has a config for.
             for getter_name, getter_func in library_getters[lib_name].items():
                 sig = inspect.signature(getter_func)
-                if 'threat_model' in sig.parameters \
-                        and _config_for(lib_name, getter_name, threat_model) is not None:
+                if (
+                    "threat_model" in sig.parameters
+                    and _config_for(lib_name, getter_name, threat_model) is not None
+                ):
                     matched_getters.add(getter_name)
 
             for name in sorted(matched_getters):
@@ -154,7 +162,7 @@ def _can_build(lib: str, attack: str, threat_model: str) -> bool:
     the getters return partials — and the result is memoised.
     """
     with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
+        warnings.simplefilter("ignore")
         try:
             get_attack(lib=lib, attack=attack, threat_model=threat_model)
             return True
@@ -171,10 +179,25 @@ def _config_for(lib: str, attack: str, threat_model: str = None):
     nothing and leave the attack running on generic defaults instead of its own config.
     """
     configs = attack_configs[lib]
-    if attack in configs:
-        return configs[attack]
-    if threat_model is not None:
-        return configs.get(f'{attack}_{threat_model}')
+
+    if threat_model is None:
+        return configs.get(attack)
+
+    # A norm-specific config is more precise than the generic family config. In
+    # particular, APGD-L1 needs a different epsilon and ``use_largereps`` value,
+    # while FMN-Linf uses a different maximum step size.
+    specific = configs.get(f"{attack}_{threat_model}")
+    if specific is not None and specific().get("threat_model") == threat_model:
+        return specific
+
+    # A getter accepting ``threat_model`` only proves that its implementation has a
+    # norm switch; it does not make an epsilon or the other hyperparameters meaningful
+    # under every norm. A generic config therefore authorises only the norm it
+    # explicitly declares.
+    generic = configs.get(attack)
+    if generic is not None and generic().get("threat_model") == threat_model:
+        return generic
+
     return None
 
 
@@ -186,59 +209,40 @@ def _is_attack_compatible(lib: str, attack: str, threat_model: str) -> bool:
       - Its getter function accepts a ``threat_model`` parameter (multi-norm), OR
       - There is a config function whose ``threat_model`` matches.
     """
-    # 1) Multi-norm: the getter takes a threat_model AND there is a config to source the
-    #    attack's parameters from for that norm (a multi-norm getter with no usable
-    #    config cannot be built without inventing hyperparameters).
-    getter_func = library_getters[lib][attack]
-    sig = inspect.signature(getter_func)
-    if 'threat_model' in sig.parameters:
-        return _config_for(lib, attack, threat_model) is not None
-
-    # 2) Check config functions
-    for config_name, config_func in attack_configs[lib].items():
-        if config_func().get('threat_model') != threat_model:
-            continue
-        # Map config name back to getter name
-        if config_name == attack:
-            return True
-        for suffix in (f'_{threat_model}', '_NQ'):
-            if config_name.endswith(suffix):
-                candidate = config_name[:-len(suffix)]
-                if candidate == attack:
-                    return True
-
-    return False
+    return _config_for(lib, attack, threat_model) is not None
 
 
 def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
     """
     Get attack function by library and attack name.
-    
+
     Args:
         lib: Attack library name ('adv_lib', 'art', 'cleverhans', etc.)
         attack: Attack name within the library ('pgd', 'fgsm', etc.)
         threat_model: Threat model ('l0', 'l1', 'l2', 'linf'). Required.
         **kwargs: Additional parameters to override defaults
-        
+
     Returns:
         Attack function ready to use
-        
+
     Raises:
         ValueError: If the attack is not available for the given threat model.
-        
+
     Examples:
         attack = get_attack(lib='adv_lib', attack='pgd', threat_model='linf')
         attack = get_attack(lib='torchattacks', attack='cw_l2', threat_model='l2')
     """
-    
+
     if lib not in library_getters:
         available_libs = list(library_getters.keys())
         raise ValueError(f"Unknown attack library: {lib}. Available: {available_libs}")
-    
+
     if attack not in library_getters[lib]:
         available_attacks = list(library_getters[lib].keys())
-        raise ValueError(f"Unknown attack '{attack}' for library '{lib}'. Available: {available_attacks}")
-    
+        raise ValueError(
+            f"Unknown attack '{attack}' for library '{lib}'. Available: {available_attacks}"
+        )
+
     # Validate threat model compatibility
     if not _is_attack_compatible(lib, attack, threat_model):
         compatible = [a for _, a in list_attacks(threat_model=threat_model, lib=lib)]
@@ -246,7 +250,7 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
             f"Attack '{attack}' from '{lib}' is not available for threat model '{threat_model}'. "
             f"Compatible attacks for '{lib}' + '{threat_model}': {compatible}"
         )
-    
+
     # Get the configuration function and getter function
     config_func = _config_for(lib, attack, threat_model)
     getter_func = library_getters[lib][attack]
@@ -262,23 +266,27 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
     # happens to declare. Without this a multi-norm attack requested for 'l2' was built
     # with the config's norm — list_attacks('l2') then fed a benchmark full of linf
     # attacks labelled l2.
-    if 'threat_model' in sig.parameters and 'threat_model' not in kwargs:
-        declared = params.get('threat_model')
-        if declared is not None and declared != threat_model and 'epsilon' in params:
+    if "threat_model" in sig.parameters and "threat_model" not in kwargs:
+        declared = params.get("threat_model")
+        if declared is not None and declared != threat_model and "epsilon" in params:
             warnings.warn(
                 f"'{attack}' from '{lib}' has no config for '{threat_model}': using the "
                 f"'{declared}' one, so its perturbation budget (epsilon={params['epsilon']}) "
                 f"is the one chosen for '{declared}'. Pass epsilon=... for a budget that "
                 f"means something under '{threat_model}'."
             )
-        params['threat_model'] = threat_model
+        params["threat_model"] = threat_model
 
     # Filter parameters to match function signature
     filtered_params = {k: v for k, v in params.items() if k in sig.parameters}
 
-    missing = [p.name for p in sig.parameters.values()
-               if p.default is inspect.Parameter.empty and p.name != 'self'
-               and p.name not in filtered_params]
+    missing = [
+        p.name
+        for p in sig.parameters.values()
+        if p.default is inspect.Parameter.empty
+        and p.name != "self"
+        and p.name not in filtered_params
+    ]
     if missing:
         raise ValueError(
             f"Cannot build '{attack}' from '{lib}' for threat model '{threat_model}': "
@@ -287,7 +295,7 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
             f" — add one for '{threat_model}' or pass the parameters explicitly. "
             f"(Guessing them would silently benchmark a differently configured attack.)"
         )
-    
+
     # Call the getter function
     attack_instance = getter_func(**filtered_params)
     wrapper = library_modules[lib]._wrapper
