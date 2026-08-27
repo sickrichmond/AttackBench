@@ -21,8 +21,8 @@ Clone and install in development mode:
 
 .. code-block:: bash
 
-   git clone https://github.com/attackbench/AttackBenchLib.git
-   cd AttackBenchLib
+   git clone https://github.com/attackbench/AttackBench.git
+   cd AttackBench
    pip install -e ".[dev]"
 
 Code Style
@@ -109,7 +109,7 @@ The built documentation will be available in ``docs/_build/html/``.
 Reporting Issues
 ----------------
 
-Please report issues on GitHub: https://github.com/attackbench/AttackBenchLib/issues
+Please report issues on GitHub: https://github.com/attackbench/AttackBench/issues
 
 Contact
 -------
@@ -120,4 +120,7 @@ at ``antonio.cina@unige.it``.
 License
 -------
 
-This project is licensed under the terms specified in the LICENSE file.
+AttackBench is distributed under the MIT License;
+see the repository's ``LICENSE`` file. Bundled and adapted components are
+documented in ``THIRD_PARTY_NOTICES.md`` and remain subject to their applicable
+upstream terms.

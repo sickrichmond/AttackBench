@@ -129,13 +129,15 @@ Utilities for integrating user-defined attacks:
 preconfigured.py
 ~~~~~~~~~~~~~~~~
 
-Pre-instantiated attacks for immediate use without external libraries:
+Preconfigured callables for immediate use:
 
 - ``pgd``, ``fgsm``, ``apgd``, ``fab``, ``fmn``, ``deepfool``,
   ``superdeepfool``, ``trust_region``
 
 These are created from the ``original/`` implementations and include
 ``_attackbench_name`` and ``_attackbench_lib`` metadata for automatic tracking.
+The callables are imported lazily. FMN loads Foolbox and EagerPy when invoked and requires
+the ``attacks`` extra; the remaining implementations use core dependencies.
 
 BenchModel Wrapper
 ~~~~~~~~~~~~~~~~~~

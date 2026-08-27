@@ -21,8 +21,9 @@ Install the base package from PyPI:
 .. note::
 
    The base installation includes core dependencies (torch, torchvision, numpy, tqdm,
-   wandb). This is enough to run the built-in preconfigured attacks and analyze the
-   results.
+   wandb). This is enough to run the pure-PyTorch preconfigured attacks and analyze the
+   results. The preconfigured FMN implementation uses Foolbox and EagerPy, so it requires
+   ``attackbenchlib[attacks]``.
 
    The Python import name remains ``attackbench``:
 
@@ -53,7 +54,7 @@ Install all supported attack library wrappers (ART, Foolbox, Torchattacks, Cleve
 
       pip install "setuptools<81" wheel
       pip install --no-build-isolation visdom
-      pip install "attackbenchlib[adv_lib]"
+      pip install "adv-lib @ git+https://github.com/jeromerony/adversarial-library"
 
    The paper ranks AdvLib's implementations among the best, so an installation without it
    benchmarks weaker re-implementations of the same attacks.
@@ -73,16 +74,6 @@ whatever a given model needs, such as timm):
 .. code-block:: bash
 
    pip install "attackbenchlib[models]"
-
-.. warning::
-
-   RobustBench depends on ``autoattack``. The PyPI package ``pyautoattack`` is included
-   as a dependency, but if you encounter import errors related to autoattack, install it
-   manually from the official repository:
-
-   .. code-block:: bash
-
-      pip install git+https://github.com/fra31/auto-attack
 
 **Metrics**
 
@@ -125,13 +116,12 @@ On Google Colab, use the following installation commands:
 .. code-block:: text
 
    !pip install "attackbenchlib[models,attacks]" -q
-   !pip install git+https://github.com/fra31/auto-attack -q  # required for RobustBench
 
 .. note::
 
-   You may see red dependency conflict warnings during installation. These are caused by
-   RobustBench's strict dependency pins (e.g., ``timm==1.0.9``) conflicting with Colab's
-   pre-installed packages. They are harmless warnings — the library works correctly.
+   Colab's pre-installed packages can conflict with optional attack/model dependencies.
+   Review any resolver warning and run ``pip check``; if imports fail, restart the
+   runtime after installation or use a clean virtual environment.
 
 Development Installation
 ------------------------
@@ -140,8 +130,8 @@ To install from source for development:
 
 .. code-block:: bash
 
-   git clone https://github.com/attackbench/AttackBenchLib.git
-   cd AttackBenchLib
+   git clone https://github.com/attackbench/AttackBench.git
+   cd AttackBench
    pip install -e ".[dev]"
 
 Verification

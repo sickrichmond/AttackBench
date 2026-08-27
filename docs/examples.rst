@@ -6,7 +6,7 @@ This section provides practical examples of using AttackBenchLib.
 .. tip::
 
    A comprehensive interactive tutorial is available as a Google Colab notebook:
-   `Open Tutorial in Colab <https://colab.research.google.com/github/sickrichmond/AttackBench/blob/main/examples/AttackBenchLib.ipynb>`_
+   `Open Tutorial in Colab <https://colab.research.google.com/github/attackbench/AttackBench/blob/main/examples/AttackBenchLib.ipynb>`_
 
 Running Preconfigured Attacks
 -----------------------------

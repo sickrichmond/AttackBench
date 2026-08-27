@@ -81,7 +81,7 @@ against an older setuptools first:
 
    pip install "setuptools<81" wheel
    pip install --no-build-isolation visdom
-   pip install "attackbenchlib[adv_lib]"
+   pip install "adv-lib @ git+https://github.com/jeromerony/adversarial-library"
 
 Its implementations rank among the best in the paper, so a benchmark run without it
 compares weaker re-implementations of the same attacks. When it is absent, its attacks
@@ -374,7 +374,7 @@ See :doc:`contributing` for details.
 Where do I report bugs?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Open an issue on GitHub: https://github.com/attackbench/AttackBenchLib/issues
+Open an issue on GitHub: https://github.com/attackbench/AttackBench/issues
 
 Citation
 --------

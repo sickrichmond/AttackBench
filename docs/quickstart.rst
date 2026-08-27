@@ -46,7 +46,8 @@ Running a Simple Attack
 Using Preconfigured Attacks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AttackBenchLib ships with preconfigured attacks that are ready to use out of the box:
+AttackBenchLib ships with pure-PyTorch preconfigured attacks that are ready to use with
+the base installation:
 
 .. code-block:: python
 
@@ -85,6 +86,12 @@ Available preconfigured attacks:
        superdeepfool,  # SuperDeepFool
        trust_region,   # Trust Region
    )
+
+.. note::
+
+   The preconfigured ``fmn`` attack uses Foolbox and EagerPy and therefore requires
+   ``pip install "attackbenchlib[attacks]"``. The other attacks above work with the base
+   installation.
 
 Using Library Attacks
 ~~~~~~~~~~~~~~~~~~~~~

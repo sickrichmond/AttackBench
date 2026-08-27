@@ -6,7 +6,9 @@ Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Dem
 
 **Paper:** [https://arxiv.org/pdf/2404.19460](https://arxiv.org/pdf/2404.19460)
 
-**Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sickrichmond/AttackBench/blob/main/examples/AttackBenchLib.ipynb)
+**Changelog:** [2.0.0 release notes](https://github.com/attackbench/AttackBench/blob/main/CHANGELOG.md)
+
+**Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/attackbench/AttackBench/blob/main/examples/AttackBenchLib.ipynb)
 ## How it works
 AttackBenchLib is a library that implements the framework described in the AttackBench paper in a new modular, user-friendly way in order to make multiple workflows and kinds of analysis possible through the use of a single library. 
 The <code>AttackBench</code> framework aims to fairly compare gradient-based attacks based on their security evaluation curves. To this end, we derive a process involving five distinct stages, as depicted below.
@@ -82,12 +84,6 @@ pip install "attackbenchlib[metrics]"
 pip install "attackbenchlib[all]"
 ```
 
-> **Note on `autoattack`:** RobustBench depends on `autoattack`. If you encounter import errors
-> related to autoattack after installing `attackbenchlib[models]`, install it manually from GitHub:
-> ```bash
-> pip install git+https://github.com/fra31/auto-attack
-> ```
-
 > **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not on PyPI, so it is not
 > part of `[all]`. Its implementations are among the top-ranked ones in the AttackBench
 > paper, so installing without it leaves you with weaker re-implementations of the same
@@ -97,7 +93,7 @@ pip install "attackbenchlib[all]"
 > ```bash
 > pip install "setuptools<81" wheel
 > pip install --no-build-isolation visdom
-> pip install "attackbenchlib[adv_lib]"
+> pip install "adv-lib @ git+https://github.com/jeromerony/adversarial-library"
 > ```
 > Without `adv-lib` installed, its attacks are simply absent from `list_attacks()`
 > instead of failing when you try to build them.
@@ -111,18 +107,17 @@ On Google Colab, install with all dependencies:
 
 ```python
 !pip install "attackbenchlib[models,attacks]" -q
-!pip install git+https://github.com/fra31/auto-attack -q  # required for RobustBench
 ```
 
-> You may see red dependency conflict warnings during installation. These are caused by
-> RobustBench's strict dependency pins (e.g., `timm==1.0.9`) conflicting with Colab's
-> pre-installed packages. They are harmless warnings — the library works correctly.
+> Colab's pre-installed packages can conflict with optional attack/model dependencies.
+> Review any resolver warning and run `pip check`; if imports fail, restart the runtime
+> after installation or use a clean virtual environment.
 
 ### Install from source (development)
 
 ```bash
-git clone https://github.com/attackbench/AttackBenchLib.git
-cd AttackBenchLib
+git clone https://github.com/attackbench/AttackBench.git
+cd AttackBench
 pip install -e ".[dev]"
 ```
 
@@ -178,7 +173,7 @@ Version 2.0 changes what the numbers mean, so results are not comparable with 1.
 - `include_metadata` is gone: query counts, timings, predictions and the failure
   indicators are always returned.
 
-Preconfigured attacks available out of the box: `pgd`, `fgsm`, `apgd`, `fab`, `fmn`, `deepfool`, `superdeepfool`, `trust_region`.
+Preconfigured attacks available with the base installation: `pgd`, `fgsm`, `apgd`, `fab`, `deepfool`, `superdeepfool`, `trust_region`. The preconfigured `fmn` attack additionally requires `attackbenchlib[attacks]`.
 
 To use attacks from external libraries (requires `attackbenchlib[attacks]`):
 
@@ -209,7 +204,7 @@ The wrappers for all the implementations (including libraries) must have the fol
 
 ## Citation
 
-If you use the **AttackBench** leaderboards or implementation, then consider citing our [paper]():
+If you use the **AttackBench** leaderboards or implementation, then consider citing our [paper](https://doi.org/10.1609/aaai.v39i3.32263):
 
 ```bibtex
 @inproceedings{cina2025attackbench,
