@@ -10,7 +10,8 @@ authors = [
     { name = "Antonio Cinà", email="antonio.cina@unige.it"},
     { name = "Riccardo Trebiani", email = "richitrebbia@gmail.com" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 readme = "README.md"
 # No upper bound: the <3.13 cap made the package uninstallable on current Python
 # releases. It came from the [deeprobust] extra (scipy<1.8, Python 3.9 only), which is

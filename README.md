@@ -223,6 +223,11 @@ If you use the **AttackBench** leaderboards or implementation, then consider cit
 Feel free to contact us about anything related to **`AttackBench`** by creating an issue, a pull request or 
 by email at `antonio.cina@unige.it`.
 
+## License
+
+AttackBench is distributed under the [MIT License](LICENSE).
+See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for bundled and adapted components.
+
 ## Acknowledgements
 AttackBench has been partially developed with the support of European Union’s [ELSA – European Lighthouse on Secure and Safe AI](https://elsa-ai.eu), Horizon Europe, grant agreement No. 101070617, and [Sec4AI4Sec - Cybersecurity for AI-Augmented Systems](https://www.sec4ai4sec-project.eu), Horizon Europe, grant agreement No. 101120393.
 
