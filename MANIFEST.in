@@ -1,0 +1,3 @@
+include CHANGELOG.md
+recursive-include docs *.md *.rst *.txt Makefile
+prune docs/_build

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=70.0.0", "wheel", "setuptools_scm[toml]>=6"]
+requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -35,8 +35,20 @@ dependencies = [
     "wandb>=0.15.0",
 ]
 
+[project.urls]
+Homepage = "https://attackbench.github.io/"
+Documentation = "https://attackbench.readthedocs.io/en/latest/"
+Repository = "https://github.com/attackbench/AttackBench"
+Issues = "https://github.com/attackbench/AttackBench/issues"
+Paper = "https://doi.org/10.1609/aaai.v39i3.32263"
+Changelog = "https://github.com/attackbench/AttackBench/blob/main/CHANGELOG.md"
+
+[project.scripts]
+attackbench-acceptance = "attackbench.acceptance:main"
+
 [project.optional-dependencies]
-# Attack package - enables all adversarial attack libraries (except deeprobust)
+# Attack package - enables PyPI-hosted attack libraries (except deeprobust).
+# adv-lib is installed manually from its source repository; see the README.
 attacks = [
     "adversarial-robustness-toolbox",
     "foolbox",
@@ -44,15 +56,6 @@ attacks = [
     "cleverhans==4.0.0",
     # Note: robustbench is NOT needed here — attacks don't depend on it.
     #       It belongs in [models] for loading pretrained robust models.
-]
-
-# AdvLib is not on PyPI, but its implementations are among the top-ranked ones in the
-# AttackBench paper — installing without it leaves you with the weaker re-implementations.
-# Needs a prepared environment, see the note in the README: adv-lib depends on visdom,
-# whose setup.py imports pkg_resources (dropped by setuptools 81+), so visdom must be
-# built first with `pip install "setuptools<81" wheel && pip install --no-build-isolation visdom`.
-adv_lib = [
-    "adv-lib @ git+https://github.com/jeromerony/adversarial-library",
 ]
 
 # DeepRobust attacks (requires scipy<1.8.0, incompatible with Python 3.10+)
@@ -68,7 +71,11 @@ deeprobust = [
 models = [
     "pillow>=8.0.0",
     "robustbench>=1.1",
-    "pyautoattack>=0.2.0",  # Required by robustbench (provides the 'autoattack' module)
+    # GeoTorch 0.4 raises the PyTorch floor to 2.6; 0.3 is what RobustBench 1.1
+    # was designed around and preserves AttackBench's declared torch>=2.4 floor.
+    "geotorch<0.4",
+    # RobustBench 1.1.1 still imports pkg_resources, removed in setuptools 81.
+    "setuptools<81",
 ]
 
 # Metrics package - enables results analysis and evaluation.
@@ -76,8 +83,8 @@ models = [
 # `pip install attackbenchlib[metrics]` stays valid.
 metrics = []
 
-# Complete package - includes all optional dependencies (except deeprobust and adv_lib,
-# which needs a git checkout)
+# Complete package - includes all PyPI-hosted optional dependencies (except deeprobust).
+# adv-lib must be installed manually from its source repository; see the README.
 all = [
     "attackbenchlib[attacks,models,metrics]",
 ]
