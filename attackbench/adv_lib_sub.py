@@ -16,23 +16,23 @@ from collections import OrderedDict
 from typing import Optional, Tuple, Union
 
 import torch
-from torch import nn, Tensor
-
+from torch import Tensor, nn
 
 # =============================================================================
 # DISTANCE METRICS
 # =============================================================================
 
+
 def l0_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
     """
     Compute L0 distance (number of perturbed elements) between original and adversarial samples.
-    
+
     Args:
         x: Original inputs, shape (batch_size, ...)
         x_adv: Adversarial inputs, shape (batch_size, ...)
         dim: Starting dimension from which to flatten and compute distance.
              If None, flattens from dim 1.
-        
+
     Returns:
         L0 distances per sample
     """
@@ -46,13 +46,13 @@ def l0_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
 def l1_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
     """
     Compute L1 distance (sum of absolute differences) between original and adversarial samples.
-    
+
     Args:
         x: Original inputs, shape (batch_size, ...)
         x_adv: Adversarial inputs, shape (batch_size, ...)
         dim: Starting dimension from which to flatten and compute distance.
              If None, flattens from dim 1.
-        
+
     Returns:
         L1 distances per sample
     """
@@ -66,13 +66,13 @@ def l1_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
 def l2_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
     """
     Compute L2 (Euclidean) distance between original and adversarial samples.
-    
+
     Args:
         x: Original inputs, shape (batch_size, ...)
         x_adv: Adversarial inputs, shape (batch_size, ...)
         dim: Starting dimension from which to flatten and compute distance.
              If None, flattens from dim 1.
-        
+
     Returns:
         L2 distances per sample
     """
@@ -86,13 +86,13 @@ def l2_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
 def linf_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tensor:
     """
     Compute L∞ distance (maximum absolute difference) between original and adversarial samples.
-    
+
     Args:
         x: Original inputs, shape (batch_size, ...)
         x_adv: Adversarial inputs, shape (batch_size, ...)
         dim: Starting dimension from which to flatten and compute distance.
              If None, flattens from dim 1.
-        
+
     Returns:
         L∞ distances per sample
     """
@@ -109,52 +109,60 @@ def linf_distances(x: Tensor, x_adv: Tensor, dim: Optional[int] = None) -> Tenso
 
 # Default metrics dictionary for tracking distance metrics
 # This matches the adv_lib._default_metrics structure
-_default_metrics = OrderedDict([
-    ('linf', linf_distances),
-    ('l2', l2_distances),
-    ('l1', l1_distances),
-    ('l0', l0_distances),
-])
+_default_metrics = OrderedDict(
+    [
+        ("linf", linf_distances),
+        ("l2", l2_distances),
+        ("l1", l1_distances),
+        ("l0", l0_distances),
+    ]
+)
 
 
 # =============================================================================
 # LOSS FUNCTIONS
 # =============================================================================
 
-def difference_of_logits(logits: Tensor, labels: Tensor, targeted: bool = False) -> Tensor:
+
+def difference_of_logits(
+    logits: Tensor, labels: Tensor, targeted: bool = False
+) -> Tensor:
     """
     Compute the Difference of Logits (DL) loss.
-    
+
     DL loss is defined as:
     - For untargeted: logit[true_class] - max(logit[other_classes])
     - For targeted: max(logit[other_classes]) - logit[target_class]
-    
-    Positive values indicate misclassification (successful attack).
-    
+
+    Positive values mean the attack objective has not been reached yet. Values at or
+    below zero indicate success (misclassification for untargeted attacks, or the
+    requested class becoming maximal for targeted attacks).
+
     Args:
         logits: Model output logits, shape (batch_size, num_classes)
         labels: True labels (untargeted) or target labels (targeted), shape (batch_size,)
         targeted: Whether this is a targeted attack
-        
+
     Returns:
         DL loss per sample, shape (batch_size,)
     """
     batch_size, num_classes = logits.shape
-    
+
     # Get logit values for the target/true class
     target_logits = logits.gather(1, labels.unsqueeze(1)).squeeze(1)
-    
-    # Create a mask for other classes
-    mask = torch.ones_like(logits).scatter_(1, labels.unsqueeze(1), 0.0)
-    
-    # Get maximum logit among other classes
-    other_logits = (logits * mask + (1 - mask) * float('-inf')).max(dim=1)[0]
-    
+
+    # Masking by multiplication would evaluate ``0 * -inf`` at every non-label
+    # position and turn an otherwise finite loss into NaN. masked_fill avoids that
+    # undefined arithmetic and preserves finite gradients.
+    label_mask = torch.zeros_like(logits, dtype=torch.bool)
+    label_mask.scatter_(1, labels.unsqueeze(1), True)
+    other_logits = logits.masked_fill(label_mask, float("-inf")).max(dim=1).values
+
     if targeted:
-        # For targeted: want other_logits > target_logits (positive when successful)
+        # Minimise until the target logit is at least the largest other logit.
         return other_logits - target_logits
     else:
-        # For untargeted: want target_logits < other_logits (positive when successful)
+        # Minimise until another logit is at least the true-class logit.
         return target_logits - other_logits
 
 
@@ -162,55 +170,61 @@ def difference_of_logits(logits: Tensor, labels: Tensor, targeted: bool = False)
 # MODEL UTILITIES
 # =============================================================================
 
+
 class NormalizeLayer(nn.Module):
     """Normalization layer to be prepended to a model."""
-    
-    def __init__(self, mean: Union[Tuple[float, ...], Tensor], 
-                 std: Union[Tuple[float, ...], Tensor]):
+
+    def __init__(
+        self,
+        mean: Union[Tuple[float, ...], Tensor],
+        std: Union[Tuple[float, ...], Tensor],
+    ):
         """
         Initialize normalization layer.
-        
+
         Args:
             mean: Mean values for each channel
             std: Standard deviation values for each channel
         """
         super(NormalizeLayer, self).__init__()
-        
+
         if isinstance(mean, (tuple, list)):
             mean = torch.tensor(mean)
         if isinstance(std, (tuple, list)):
             std = torch.tensor(std)
-            
-        self.register_buffer('mean', mean.view(1, -1, 1, 1))
-        self.register_buffer('std', std.view(1, -1, 1, 1))
-    
+
+        self.register_buffer("mean", mean.view(1, -1, 1, 1))
+        self.register_buffer("std", std.view(1, -1, 1, 1))
+
     def forward(self, x: Tensor) -> Tensor:
         """Normalize input tensor."""
         return (x - self.mean) / self.std
 
 
-def normalize_model(model: nn.Module, 
-                    mean: Union[Tuple[float, ...], Tensor],
-                    std: Union[Tuple[float, ...], Tensor]) -> nn.Module:
+def normalize_model(
+    model: nn.Module,
+    mean: Union[Tuple[float, ...], Tensor],
+    std: Union[Tuple[float, ...], Tensor],
+) -> nn.Module:
     """
     Prepend a normalization layer to a model.
-    
+
     Creates a sequential model with normalization as the first layer,
     allowing the model to accept [0, 1] normalized inputs.
-    
+
     Args:
         model: PyTorch model to wrap
         mean: Mean values for normalization (per channel)
         std: Standard deviation values for normalization (per channel)
-        
+
     Returns:
         Sequential model with normalization prepended
-        
+
     Example:
         >>> model = resnet18()
         >>> # Normalize with ImageNet stats
         >>> normalized_model = normalize_model(
-        ...     model, 
+        ...     model,
         ...     mean=(0.485, 0.456, 0.406),
         ...     std=(0.229, 0.224, 0.225)
         ... )
@@ -225,15 +239,15 @@ def normalize_model(model: nn.Module,
 
 __all__ = [
     # Distance metrics
-    'l0_distances',
-    'l1_distances', 
-    'l2_distances',
-    'linf_distances',
+    "l0_distances",
+    "l1_distances",
+    "l2_distances",
+    "linf_distances",
     # Default metrics
-    '_default_metrics',
+    "_default_metrics",
     # Loss functions
-    'difference_of_logits',
+    "difference_of_logits",
     # Model utilities
-    'NormalizeLayer',
-    'normalize_model',
+    "NormalizeLayer",
+    "normalize_model",
 ]
