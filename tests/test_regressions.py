@@ -66,3 +66,5 @@ def test_native_deepfool_wrappers_preserve_batch_shape_and_box(model):
     for outputs in (deepfool_outputs, superdeepfool_outputs):
         assert outputs.shape == inputs.shape
         assert ((0 <= outputs) & (outputs <= 1)).all()
+
+    assert model(deepfool_outputs).argmax(dim=1).ne(labels).all()

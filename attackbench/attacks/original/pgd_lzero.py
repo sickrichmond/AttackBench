@@ -1,213 +1,172 @@
-# Adapted from https://github.com/fra31/sparse-imperceivable-attacks/blob/master/pgd_attacks_pt.py
-from functools import partial
+"""Independent sparse projected-gradient attack for the L0 threat model.
+
+The implementation follows the optimization problem in Croce and Hein, "Sparse
+and Imperceivable Adversarial Attacks", ICCV 2019. It is implemented directly in
+PyTorch and does not derive from the authors source code.
+"""
+
 from typing import Optional
 
-import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
 
 
-class BinarySearchMinimalWrapperL0:
-    def __init__(self, model: nn.Module, attack: partial, init_eps: float, search_steps: int,
-                 max_eps: Optional[float] = None):
-        self.attack = partial(attack, model=model)
-        self.model = model
-        self.init_eps = init_eps
-        self.search_steps = search_steps
-        self.max_eps = max_eps
-        self.targeted = False
+def _project_l0(original: Tensor, proposed: Tensor, budgets: Tensor) -> Tensor:
+    """Project each sample onto an element-wise L0 ball around ``original``."""
+    flat_delta = (proposed - original).flatten(1)
+    feature_count = flat_delta.shape[1]
+    budgets = budgets.to(device=original.device, dtype=torch.long).clamp(
+        min=0, max=feature_count
+    )
 
-    def __call__(self, inputs: Tensor, labels: Tensor) -> Tensor:
-        batch_size = len(inputs)
-        adv_inputs = inputs.clone()
-        eps_low = inputs.new_zeros(batch_size, dtype=torch.long)
-        best_eps = torch.full_like(eps_low, torch.iinfo(torch.long).max if self.max_eps is None else 2 * self.max_eps)
-        found_high = torch.full_like(eps_low, False, dtype=torch.bool)
-
-        eps = torch.full_like(eps_low, self.init_eps)
-        for i in range(self.search_steps):
-            adv_inputs_run = inputs.clone()
-            for eps_ in torch.unique(eps):
-                if eps_.item() > 0:
-                    mask = eps == eps_
-                    adv_inputs_run[mask] = self.attack(inputs=inputs[mask], labels=labels[mask], epsilon=eps_.item())
-
-            logits = self.model(adv_inputs_run)
-            preds = logits.argmax(dim=1)
-            is_adv = (preds != labels) if self.targeted else (preds != labels)
-
-            better_adv = is_adv & (eps < best_eps)
-            adv_inputs[better_adv] = adv_inputs_run[better_adv]
-
-            found_high.logical_or_(better_adv)
-            eps_low = torch.where(better_adv, eps_low, eps)
-            best_eps = torch.where(better_adv, eps, best_eps)
-
-            eps = torch.where(found_high | ((2 * eps_low) >= best_eps),
-                              torch.div(eps_low + best_eps, 2, rounding_mode='floor'),
-                              2 * eps_low)
-        return adv_inputs
+    order = flat_delta.abs().argsort(dim=1, descending=True)
+    sorted_keep = torch.arange(feature_count, device=original.device).unsqueeze(0)
+    sorted_keep = sorted_keep < budgets.unsqueeze(1)
+    keep = torch.zeros_like(sorted_keep).scatter(1, order, sorted_keep)
+    projected = torch.where(keep, flat_delta, torch.zeros_like(flat_delta))
+    return (original + projected.reshape_as(original)).clamp(0.0, 1.0)
 
 
-def get_predictions_and_gradients(model, x_nat, y_nat, device):
-    x = torch.from_numpy(x_nat).permute(0, 3, 1, 2).float()
-    x.requires_grad_()
-    y = torch.from_numpy(y_nat)
-    model = model.to(device)
-    x = x.to(device)
-    y = y.to(device)
-
-    with torch.enable_grad():
-        output = model(x)
-        loss = nn.CrossEntropyLoss()(output, y)
-
-    grad = torch.autograd.grad(loss, x)[0]
-    grad = grad.detach().permute(0, 2, 3, 1).cpu().numpy()
-
-    pred = (output.detach().cpu().max(dim=-1)[1] == y.cpu()).numpy()
-
-    return pred, grad
+def _is_successful(
+    logits: Tensor,
+    labels: Tensor,
+    targets: Optional[Tensor],
+    targeted: bool,
+) -> Tensor:
+    predictions = logits.argmax(dim=1)
+    if targeted:
+        if targets is None:
+            raise ValueError("targets are required for a targeted PGD0 attack")
+        return predictions.eq(targets)
+    return predictions.ne(labels)
 
 
-def get_predictions(model, x_nat, y_nat, device):
-    x = torch.from_numpy(x_nat).permute(0, 3, 1, 2).float()
-    y = torch.from_numpy(y_nat)
-    model = model.to(device)
-    xdev = x.to(device)
+def _sparse_pgd(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    budgets: Tensor,
+    *,
+    num_steps: int,
+    step_size: float,
+    n_restarts: int,
+    targets: Optional[Tensor],
+    targeted: bool,
+) -> Tensor:
+    """Run fixed-budget sparse PGD and return successful points when found."""
+    best = inputs.detach().clone()
+    with torch.no_grad():
+        found = _is_successful(model(inputs), labels, targets, targeted)
+
+    objective_labels = targets if targeted else labels
+    if objective_labels is None:
+        raise ValueError("targets are required for a targeted PGD0 attack")
+
+    for restart in range(n_restarts):
+        if restart == 0:
+            current = inputs.detach().clone()
+        else:
+            random_point = torch.rand_like(inputs)
+            current = _project_l0(inputs, random_point, budgets).detach()
+
+        for _ in range(num_steps):
+            variable = current.detach().requires_grad_(True)
+            logits = model(variable)
+            success = _is_successful(logits, labels, targets, targeted)
+            newly_found = success & ~found
+            best[newly_found] = variable.detach()[newly_found]
+            found |= success
+
+            objective = F.cross_entropy(logits, objective_labels, reduction="sum")
+            if targeted:
+                objective = -objective
+            gradient = torch.autograd.grad(objective, variable)[0]
+            proposed = variable.detach() + step_size * gradient.sign()
+            current = _project_l0(inputs, proposed, budgets).detach()
+
+        with torch.no_grad():
+            success = _is_successful(model(current), labels, targets, targeted)
+        newly_found = success & ~found
+        best[newly_found] = current[newly_found]
+        found |= success
+
+    mask_shape = (len(inputs),) + (1,) * (inputs.ndim - 1)
+    return torch.where(found.view(mask_shape), best, inputs).detach()
+
+
+def PGD0_minimal(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    search_steps: int = 10,
+    num_steps: int = 100,
+    step_size: float = 120000.0 / 255.0,
+    kappa: float = -1,
+    epsilon: float = -1,
+    init_eps: int = 100,
+    n_restarts: int = 1,
+    targets: Optional[Tensor] = None,
+    targeted: bool = False,
+) -> Tensor:
+    """Search for the smallest successful element-wise L0 budget per sample.
+
+    ``kappa`` and ``epsilon`` remain in the signature for compatibility with the
+    1.x configuration schema; the minimal unconstrained-L0 variant does not use
+    either parameter.
+    """
+    if search_steps <= 0:
+        raise ValueError("search_steps must be positive")
+    if num_steps <= 0:
+        raise ValueError("num_steps must be positive")
+    if step_size <= 0:
+        raise ValueError("step_size must be positive")
+    if n_restarts <= 0:
+        raise ValueError("n_restarts must be positive")
+    if targeted and targets is None:
+        raise ValueError("targets are required for a targeted PGD0 attack")
+
+    del kappa, epsilon
+    feature_count = inputs[0].numel()
+    low = torch.zeros(len(inputs), device=inputs.device, dtype=torch.long)
+    current_budget = torch.full_like(low, max(1, int(init_eps))).clamp(
+        max=feature_count
+    )
+    high = current_budget.clone()
+    best = inputs.detach().clone()
 
     with torch.no_grad():
-        output = model(xdev)
+        found_high = _is_successful(model(inputs), labels, targets, targeted)
 
-    return (output.cpu().max(dim=-1)[1] == y).numpy()
+    for _ in range(search_steps):
+        candidate = _sparse_pgd(
+            model,
+            inputs,
+            labels,
+            current_budget,
+            num_steps=num_steps,
+            step_size=step_size,
+            n_restarts=n_restarts,
+            targets=targets,
+            targeted=targeted,
+        )
+        with torch.no_grad():
+            success = _is_successful(model(candidate), labels, targets, targeted)
 
+        improved = success & (~found_high | (current_budget < high))
+        best[improved] = candidate[improved]
+        high = torch.where(success, current_budget, high)
+        low = torch.where(success, low, current_budget)
+        found_high |= success
 
-def project_L0_box(y, k, lb, ub):
-    ''' projection of the batch y to a batch x such that:
-          - each image of the batch x has at most k pixels with non-zero channels
-          - lb <= x <= ub '''
+        midpoint = torch.div(low + high, 2, rounding_mode="floor")
+        doubled = (current_budget * 2).clamp(max=feature_count)
+        current_budget = torch.where(found_high, midpoint, doubled)
 
-    x = np.copy(y)
-    p1 = np.sum(x ** 2, axis=-1)
-    p2 = np.minimum(np.minimum(ub - x, x - lb), 0)
-    p2 = np.sum(p2 ** 2, axis=-1)
-    p3 = np.sort(np.reshape(p1 - p2, [p2.shape[0], -1]))[:, -k]
-    x = x * (np.logical_and(lb <= x, x <= ub)) + lb * (lb > x) + ub * (x > ub)
-    x *= np.expand_dims((p1 - p2) >= p3.reshape([-1, 1, 1]), -1)
+        resolved = found_high & ((high - low) <= 1)
+        exhausted = ~found_high & (current_budget == feature_count)
+        if bool((resolved | exhausted).all()):
+            break
 
-    return x
-
-
-def perturb_L0_box(attack, x_nat, y_nat, lb, ub, device):
-    ''' PGD attack wrt L0-norm + box constraints
-
-        it returns adversarial examples (if found) adv for the images x_nat, with correct labels y_nat,
-        such that:
-          - each image of the batch adv differs from the corresponding one of
-            x_nat in at most k pixels
-          - lb <= adv - x_nat <= ub
-
-        it returns also a vector of flags where 1 means no adversarial example found
-        (in this case the original image is returned in adv) '''
-
-    if attack.rs:
-        x2 = x_nat + np.random.uniform(lb, ub, x_nat.shape)
-        x2 = np.clip(x2, 0, 1)
-    else:
-        x2 = np.copy(x_nat)
-
-    adv_not_found = np.ones(y_nat.shape)
-    adv = np.zeros(x_nat.shape)
-
-    for i in (range(attack.num_steps)):
-        if i > 0:
-            # pred, grad = sess.run([attack.model.correct_prediction, attack.model.grad], feed_dict={attack.model.x_input: x2, attack.model.y_input: y_nat})
-            pred, grad = get_predictions_and_gradients(attack.model, x2, y_nat, device)
-            adv_not_found = np.minimum(adv_not_found, pred.astype(int))
-            adv[np.logical_not(pred)] = np.copy(x2[np.logical_not(pred)])
-
-            grad /= (1e-10 + np.sum(np.abs(grad), axis=(1, 2, 3), keepdims=True))
-            x2 = np.add(x2, (np.random.random_sample(grad.shape) - 0.5) * 1e-12 + attack.step_size * grad,
-                        casting='unsafe')
-
-        x2 = x_nat + project_L0_box(x2 - x_nat, attack.k, lb, ub)
-
-    return adv, adv_not_found
-
-
-class PGDattack():
-    def __init__(self, model, args):
-        self.model = model
-        self.type_attack = args['type_attack']  # 'L0', 'L0+Linf', 'L0+sigma'
-        self.num_steps = args['num_steps']  # number of iterations of gradient descent for each restart
-        self.step_size = args['step_size']  # step size for gradient descent (\eta in the paper)
-        self.n_restarts = args['n_restarts']  # number of random restarts to perform
-        self.rs = True  # random starting point
-        self.epsilon = args['epsilon']  # for L0+Linf, the bound on the Linf-norm of the perturbation
-        self.kappa = args[
-            'kappa']  # for L0+sigma (see kappa in the paper), larger kappa means easier and more visible attacks
-        self.k = args['sparsity']  # maximum number of pixels that can be modified (k_max in the paper)
-
-    def perturb(self, x_nat, y_nat, device):
-        adv = np.copy(x_nat)
-
-        for counter in range(self.n_restarts):
-            if counter == 0:
-                # corr_pred = sess.run(self.model.correct_prediction, {self.model.x_input: x_nat, self.model.y_input: y_nat})
-                corr_pred = get_predictions(self.model, x_nat, y_nat, device)
-                pgd_adv_acc = np.copy(corr_pred)
-
-            if self.type_attack == 'L0':
-                x_batch_adv, curr_pgd_adv_acc = perturb_L0_box(self, x_nat, y_nat, -x_nat, 1.0 - x_nat, device)
-
-            elif self.type_attack == 'L0+Linf':
-                x_batch_adv, curr_pgd_adv_acc = perturb_L0_box(self, x_nat, y_nat, np.maximum(-self.epsilon, -x_nat),
-                                                               np.minimum(self.epsilon, 1.0 - x_nat))
-
-            # elif self.type_attack == 'L0+sigma' and x_nat.shape[3] == 3:
-            #    x_batch_adv, curr_pgd_adv_acc = perturb_L0_sigma(self, x_nat, y_nat)
-
-            elif self.type_attack == 'L0+sigma' and x_nat.shape[3] == 1:
-                x_batch_adv, curr_pgd_adv_acc = perturb_L0_box(self, x_nat, y_nat,
-                                                               np.maximum(-self.kappa * self.sigma, -x_nat),
-                                                               np.minimum(self.kappa * self.sigma, 1.0 - x_nat))
-
-            pgd_adv_acc = np.minimum(pgd_adv_acc, curr_pgd_adv_acc)
-            adv[np.logical_not(curr_pgd_adv_acc)] = x_batch_adv[np.logical_not(curr_pgd_adv_acc)]
-        return adv, pgd_adv_acc
-
-
-def PGD0(model, inputs, labels, epsilon, attack_args):
-    attack_args['sparsity'] = epsilon
-    attack = PGDattack(model, attack_args)
-    device = inputs.get_device()
-    x_test = inputs.permute(0, 2, 3, 1).cpu().numpy()
-    y_test = labels.cpu().numpy()
-    adv, _ = attack.perturb(x_test, y_test, device)
-    x_torch = torch.from_numpy(adv).permute(0, 3, 1, 2).to(device)
-    return x_torch
-
-
-def PGD0_minimal(model: torch.nn.Module,
-                 inputs: Tensor,
-                 labels: Tensor,
-                 search_steps: int = 10,
-                 num_steps: int = 100,
-                 step_size: float = 120000.0 / 255.0,
-                 kappa: float = -1,
-                 epsilon: float = -1,
-                 init_eps: int = 100,
-                 n_restarts: int = 1,
-                 targets: Optional[Tensor] = None,
-                 targeted: bool = False) -> Tensor:
-    attack_args = {
-        'type_attack': 'L0',
-        'n_restarts': n_restarts,
-        'num_steps': num_steps,
-        'step_size': step_size,
-        'kappa': kappa,
-        'epsilon': epsilon,
-    }
-    pgd0 = partial(PGD0, attack_args=attack_args)
-    pgd_minimal = BinarySearchMinimalWrapperL0(model=model, attack=pgd0, init_eps=init_eps, search_steps=search_steps)
-    adv_examples = pgd_minimal(inputs=inputs, labels=labels)
-    return adv_examples
+    mask_shape = (len(inputs),) + (1,) * (inputs.ndim - 1)
+    return torch.where(found_high.view(mask_shape), best, inputs).detach()

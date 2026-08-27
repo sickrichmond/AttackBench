@@ -5,12 +5,22 @@ from typing import Any, Optional, Tuple, Union
 import eagerpy as ep
 from eagerpy.astensor import T
 from foolbox import Misclassification, Model, PyTorchModel, TargetedMisclassification
-from foolbox.attacks.base import MinimizationAttack, get_criterion, get_is_adversarial, raise_if_kwargs
-from foolbox.attacks.gradient_descent_base import clip_lp_norms, normalize_lp_norms, uniform_l1_n_balls, \
-    uniform_l2_n_balls
+from foolbox.attacks.base import (
+    MinimizationAttack,
+    get_criterion,
+    get_is_adversarial,
+    raise_if_kwargs,
+)
+from foolbox.attacks.gradient_descent_base import (
+    clip_lp_norms,
+    normalize_lp_norms,
+    uniform_l1_n_balls,
+    uniform_l2_n_balls,
+)
 from foolbox.devutils import atleast_kd, flatten
 from foolbox.distances import l0, l1, l2, linf
 from foolbox.types import Bounds
+import torch
 from torch import Tensor, nn
 
 
@@ -25,13 +35,15 @@ class FMNAttackLp(MinimizationAttack):
     """
 
     def __init__(
-            self, *, steps: int = 10,
-            max_stepsize: float = 1.0,
-            min_stepsize: float = None,
-            gamma: float = 0.05,
-            restarts: int = 0,
-            init_attack: Optional[MinimizationAttack] = None,
-            binary_search_steps: int = 10,
+        self,
+        *,
+        steps: int = 10,
+        max_stepsize: float = 1.0,
+        min_stepsize: float = None,
+        gamma: float = 0.05,
+        restarts: int = 0,
+        init_attack: Optional[MinimizationAttack] = None,
+        binary_search_steps: int = 10,
     ):
         """
 
@@ -69,14 +81,14 @@ class FMNAttackLp(MinimizationAttack):
         self.p = self.distance.p
 
     def run(
-            self,
-            model: Model,
-            inputs: T,
-            criterion: Union[Misclassification, TargetedMisclassification, T],
-            *,
-            starting_points: Optional[ep.Tensor] = None,
-            early_stop: Optional[float] = None,
-            **kwargs: Any,
+        self,
+        model: Model,
+        inputs: T,
+        criterion: Union[Misclassification, TargetedMisclassification, T],
+        *,
+        starting_points: Optional[ep.Tensor] = None,
+        early_stop: Optional[float] = None,
+        **kwargs: Any,
     ) -> T:
         raise_if_kwargs(kwargs)
         criterion_ = get_criterion(criterion)
@@ -91,7 +103,7 @@ class FMNAttackLp(MinimizationAttack):
             raise ValueError("unsupported criterion")
 
         def loss_fn(
-                inputs: ep.Tensor, labels: ep.Tensor
+            inputs: ep.Tensor, labels: ep.Tensor
         ) -> Tuple[ep.Tensor, Tuple[ep.Tensor, ep.Tensor]]:
 
             logits = model(inputs)
@@ -152,11 +164,15 @@ class FMNAttackLp(MinimizationAttack):
         if self.p != 0:
             epsilon = ep.inf * ep.ones(x, len(x))
         else:
-            epsilon = ep.ones(x, len(x)) if x1 is None \
+            epsilon = (
+                ep.ones(x, len(x))
+                if x1 is None
                 else ep.norms.l0(flatten(delta), axis=-1)
+            )
         if self.p != 0:
-            worst_norm = ep.norms.lp(flatten(ep.maximum(x - min_, max_ - x)),
-                                     p=self.p, axis=-1)
+            worst_norm = ep.norms.lp(
+                flatten(ep.maximum(x - min_, max_ - x)), p=self.p, axis=-1
+            )
         else:
             worst_norm = flatten(ep.ones_like(x)).bool().sum(axis=1).float32()
 
@@ -167,12 +183,14 @@ class FMNAttackLp(MinimizationAttack):
         for i in range(self.steps):
             # perform cosine annealing of learning rates
             stepsize = (
-                    self.min_stepsize + (self.max_stepsize - self.min_stepsize) * (
-                    1 + math.cos(math.pi * i / self.steps)) / 2
+                self.min_stepsize
+                + (self.max_stepsize - self.min_stepsize)
+                * (1 + math.cos(math.pi * i / self.steps))
+                / 2
             )
             gamma = (
-                    0.001 + (self.gamma - 0.001) * (
-                    1 + math.cos(math.pi * (i / self.steps))) / 2
+                0.001
+                + (self.gamma - 0.001) * (1 + math.cos(math.pi * (i / self.steps))) / 2
             )
 
             x_adv = x + delta
@@ -189,18 +207,37 @@ class FMNAttackLp(MinimizationAttack):
 
             # update epsilon
             if self.p != 0:
-                distance_to_boundary = abs(loss_batch) / ep.norms.lp(flatten(gradients), p=self.dual, axis=-1)
-                epsilon = ep.where(is_adversarial,
-                                   ep.minimum(epsilon * (1 - gamma),
-                                              ep.norms.lp(flatten(best_delta), p=self.p, axis=-1)),
-                                   ep.where(adv_found, epsilon * (1 + gamma),
-                                            ep.norms.lp(flatten(delta), p=self.p, axis=-1) + distance_to_boundary))
+                distance_to_boundary = abs(loss_batch) / ep.norms.lp(
+                    flatten(gradients), p=self.dual, axis=-1
+                )
+                epsilon = ep.where(
+                    is_adversarial,
+                    ep.minimum(
+                        epsilon * (1 - gamma),
+                        ep.norms.lp(flatten(best_delta), p=self.p, axis=-1),
+                    ),
+                    ep.where(
+                        adv_found,
+                        epsilon * (1 + gamma),
+                        ep.norms.lp(flatten(delta), p=self.p, axis=-1)
+                        + distance_to_boundary,
+                    ),
+                )
             else:
-                epsilon = ep.where(is_adversarial,
-                                   ep.minimum(ep.minimum(epsilon - 1,
-                                                         (epsilon * (1 - gamma)).astype(int).astype(epsilon.dtype)),
-                                              ep.norms.lp(flatten(best_delta), p=self.p, axis=-1)),
-                                   ep.maximum(epsilon + 1, (epsilon * (1 + gamma)).astype(int).astype(epsilon.dtype)))
+                epsilon = ep.where(
+                    is_adversarial,
+                    ep.minimum(
+                        ep.minimum(
+                            epsilon - 1,
+                            (epsilon * (1 - gamma)).astype(int).astype(epsilon.dtype),
+                        ),
+                        ep.norms.lp(flatten(best_delta), p=self.p, axis=-1),
+                    ),
+                    ep.maximum(
+                        epsilon + 1,
+                        (epsilon * (1 + gamma)).astype(int).astype(epsilon.dtype),
+                    ),
+                )
                 epsilon = ep.maximum(0, epsilon).astype(epsilon.dtype)
 
             # clip epsilon
@@ -222,21 +259,20 @@ class FMNAttackLp(MinimizationAttack):
         return restore_type(x_adv)
 
     def normalize(
-            self, gradients: ep.Tensor, *, x: ep.Tensor, bounds: Bounds
+        self, gradients: ep.Tensor, *, x: ep.Tensor, bounds: Bounds
     ) -> ep.Tensor:
         return normalize_lp_norms(gradients, p=2)
 
     @abstractmethod
-    def project(self, x: ep.Tensor, x0: ep.Tensor, epsilon: float) -> ep.Tensor:
-        ...
+    def project(self, x: ep.Tensor, x0: ep.Tensor, epsilon: float) -> ep.Tensor: ...
 
     @abstractmethod
     def mid_points(
-            self,
-            x0: ep.Tensor,
-            x1: ep.Tensor,
-            epsilons: ep.Tensor,
-            bounds: Tuple[float, float],
+        self,
+        x0: ep.Tensor,
+        x1: ep.Tensor,
+        epsilons: ep.Tensor,
+        bounds: Tuple[float, float],
     ) -> ep.Tensor:
         raise NotImplementedError
 
@@ -254,11 +290,11 @@ class L1FMNAttack(FMNAttackLp):
         return x0 + project_onto_l1_ball(x - x0, epsilon)
 
     def mid_points(
-            self,
-            x0: ep.Tensor,
-            x1: ep.Tensor,
-            epsilons: ep.Tensor,
-            bounds: Tuple[float, float],
+        self,
+        x0: ep.Tensor,
+        x1: ep.Tensor,
+        epsilons: ep.Tensor,
+        bounds: Tuple[float, float],
     ) -> ep.Tensor:
         # returns a point between x0 and x1 where
         # epsilon = 0 returns x0 and epsilon = 1
@@ -288,7 +324,7 @@ class L2FMNAttack(FMNAttackLp):
         return x0 + clip_lp_norms(x - x0, norm=epsilon, p=2)
 
     def mid_points(
-            self, x0: ep.Tensor, x1: ep.Tensor, epsilons: ep.Tensor, bounds
+        self, x0: ep.Tensor, x1: ep.Tensor, epsilons: ep.Tensor, bounds
     ) -> ep.Tensor:
         # returns a point between x0 and x1 where
         # epsilon = 0 returns x0 and epsilon = 1
@@ -312,11 +348,11 @@ class LInfFMNAttack(FMNAttackLp):
         return x0 + clipped.reshape(x0.shape)
 
     def mid_points(
-            self,
-            x0: ep.Tensor,
-            x1: ep.Tensor,
-            epsilons: ep.Tensor,
-            bounds: Tuple[float, float],
+        self,
+        x0: ep.Tensor,
+        x1: ep.Tensor,
+        epsilons: ep.Tensor,
+        bounds: Tuple[float, float],
     ):
         # returns a point between x0 and x1 where
         # epsilon = 0 returns x0 and epsilon = 1
@@ -347,11 +383,11 @@ class L0FMNAttack(FMNAttackLp):
         return x0 + clipped.reshape(x0.shape).astype(x0.dtype)
 
     def mid_points(
-            self,
-            x0: ep.Tensor,
-            x1: ep.Tensor,
-            epsilons: ep.Tensor,
-            bounds: Tuple[float, float],
+        self,
+        x0: ep.Tensor,
+        x1: ep.Tensor,
+        epsilons: ep.Tensor,
+        bounds: Tuple[float, float],
     ):
         # returns a point between x0 and x1 where
         # epsilon = 0 returns x0 and epsilon = 1
@@ -363,64 +399,59 @@ class L0FMNAttack(FMNAttackLp):
 
 
 def project_onto_l1_ball(x: ep.Tensor, eps: ep.Tensor):
+    """Project a PyTorch batch onto per-sample L1 balls.
+
+    This implementation follows the threshold characterization from Duchi et al.,
+    "Efficient Projections onto the L1-Ball for Learning in High Dimensions",
+    ICML 2008. It was written for AttackBench and does not derive from the
+    previously referenced gist.
     """
-    Compute Euclidean projection onto the L1 ball for a batch.
+    values = x.raw
+    if not isinstance(values, torch.Tensor):
+        raise TypeError("AttackBench FMN currently supports PyTorch tensors only")
 
-      min ||x - u||_2 s.t. ||u||_1 <= eps
+    radii = eps.raw if isinstance(eps, ep.Tensor) else eps
+    radii = torch.as_tensor(radii, device=values.device, dtype=values.dtype)
+    if radii.ndim == 0:
+        radii = radii.expand(len(values))
+    radii = radii.clamp_min(0)
 
-    Inspired by the corresponding numpy version by Adrien Gaidon.
-    Adapted from the pytorch version by Tony Duan: https://gist.github.com/tonyduan/1329998205d88c566588e57e3e2c0c55
+    original_shape = values.shape
+    flat = values.flatten(1)
+    magnitudes = flat.abs()
+    already_feasible = magnitudes.sum(dim=1) <= radii
 
-    Parameters
-    ----------
-    x: (batch_size, *) torch array
-      batch of arbitrary-size tensors to project, possibly on GPU
+    ordered = magnitudes.sort(dim=1, descending=True).values
+    prefix_sums = ordered.cumsum(dim=1)
+    ranks = torch.arange(
+        1, flat.shape[1] + 1, device=values.device, dtype=values.dtype
+    ).unsqueeze(0)
+    thresholds = (prefix_sums - radii.unsqueeze(1)) / ranks
+    support_sizes = (ordered > thresholds).sum(dim=1).clamp_min(1)
+    active_threshold = thresholds.gather(1, (support_sizes - 1).unsqueeze(1)).squeeze(1)
 
-    eps: float
-      radius of l-1 ball to project onto
-
-    Returns
-    -------
-    u: (batch_size, *) torch array
-      batch of projected tensors, reshaped to match the original
-
-    Notes
-    -----
-    The complexity of this algorithm is in O(dlogd) as it involves sorting x.
-
-    References
-    ----------
-    [1] Efficient Projections onto the l1-Ball for Learning in High Dimensions
-        John Duchi, Shai Shalev-Shwartz, Yoram Singer, and Tushar Chandra.
-        International Conference on Machine Learning (ICML 2008)
-    """
-    original_shape = x.shape
-    x = flatten(x)
-    mask = (ep.norms.l1(x, axis=1) < eps).astype(x.dtype).expand_dims(1)
-    mu = ep.flip(ep.sort(ep.abs(x)), axis=-1)
-    cumsum = ep.cumsum(mu, axis=-1)
-    arange = ep.arange(x, 1, x.shape[1] + 1)
-    rho = ep.max((mu * arange > (cumsum - eps.expand_dims(1))) * arange, axis=-1) - 1
-    theta = (cumsum[ep.arange(x, x.shape[0]), rho] - eps) / (rho + 1.0)
-    proj = (ep.abs(x) - theta.expand_dims(1)).clip(min_=0, max_=ep.inf)
-    x = mask * x + (1 - mask) * proj * ep.sign(x)
-    return x.reshape(original_shape)
+    projected = flat.sign() * (magnitudes - active_threshold.unsqueeze(1)).clamp_min(0)
+    result = torch.where(already_feasible.unsqueeze(1), flat, projected)
+    return ep.astensor(result.reshape(original_shape))
 
 
 _fmn_attacks = {
-    'l0': L0FMNAttack,
-    'l1': L1FMNAttack,
-    'l2': L2FMNAttack,
-    'linf': LInfFMNAttack,
+    "l0": L0FMNAttack,
+    "l1": L1FMNAttack,
+    "l2": L2FMNAttack,
+    "linf": LInfFMNAttack,
 }
 
 
-def fmn_attack(model: nn.Module,
-               inputs: Tensor,
-               labels: Tensor,
-               threat_model: str,
-               targets: Optional[Tensor] = None,
-               targeted: bool = False, **kwargs) -> Tensor:
+def fmn_attack(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    threat_model: str,
+    targets: Optional[Tensor] = None,
+    targeted: bool = False,
+    **kwargs,
+) -> Tensor:
     attack = _fmn_attacks[threat_model](**kwargs)
     fb_model = PyTorchModel(model=model, bounds=(0, 1), device=inputs.device)
     if targeted:

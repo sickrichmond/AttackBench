@@ -1,103 +1,105 @@
-# Adapted from https://github.com/LTS4/DeepFool/blob/master/Python/deepfool.py
-import copy
+"""Independent PyTorch implementation of the DeepFool algorithm.
+
+The implementation follows the linearized decision-boundary method described in
+Moosavi-Dezfooli et al., "DeepFool: a simple and accurate method to fool deep
+neural networks", CVPR 2016. It does not derive from the authors' source code.
+"""
+
 from typing import Optional
 
-import numpy as np
-import torch as torch
+import torch
 from torch import Tensor, nn
-from torch.autograd import Variable
 
 
-def deepfool(image, net, num_classes=10, overshoot=0.02, max_iter=50):
+def _linearized_step(
+    model: nn.Module,
+    point: Tensor,
+    label: int,
+    num_classes: int,
+) -> Optional[Tensor]:
+    """Return the shortest local L2 step to a competing class hyperplane."""
+    variable = point.detach().requires_grad_(True)
+    logits = model(variable.unsqueeze(0))[0]
+    if logits.argmax().item() != label:
+        return None
+
+    candidate_count = min(max(2, num_classes), logits.numel())
+    candidates = logits.topk(candidate_count).indices.tolist()
+    if label not in candidates:
+        candidates[-1] = label
+
+    label_gradient = torch.autograd.grad(logits[label], variable, retain_graph=True)[0]
+    numerical_eps = torch.finfo(variable.dtype).eps
+    shortest_distance = torch.full((), torch.inf, device=point.device)
+    shortest_step = None
+
+    for candidate in candidates:
+        if candidate == label:
+            continue
+        candidate_gradient = torch.autograd.grad(
+            logits[candidate], variable, retain_graph=True
+        )[0]
+        normal = candidate_gradient - label_gradient
+        squared_norm = normal.flatten().square().sum().clamp_min(numerical_eps)
+        score_gap = (logits[candidate] - logits[label]).detach().abs()
+        distance = score_gap / squared_norm.sqrt()
+        if distance < shortest_distance:
+            shortest_distance = distance
+            shortest_step = (score_gap + numerical_eps) * normal / squared_norm
+
+    return shortest_step
+
+
+def deepfool_attack(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    num_classes: int = 10,
+    overshoot: float = 0.02,
+    max_iter: int = 50,
+    targets: Optional[Tensor] = None,
+    targeted: bool = False,
+    **kwargs,
+) -> Tensor:
+    """Find untargeted, approximately minimum-L2 adversarial examples.
+
+    Samples that are already misclassified are returned unchanged. DeepFool's
+    multiclass construction is untargeted; callers requesting a targeted attack
+    receive an explicit error instead of silently running a different protocol.
     """
-       :param image: Image of size HxWx3
-       :param net: network (input: images, output: values of activation **BEFORE** softmax).
-       :param num_classes: num_classes (limits the number of classes to test against, by default = 10)
-       :param overshoot: used as a termination criterion to prevent vanishing updates (default = 0.02).
-       :param max_iter: maximum number of iterations for deepfool (default = 50)
-       :return: minimal perturbation that fools the classifier, number of iterations that it required, new estimated_label and perturbed image
-    """
+    if targeted:
+        raise ValueError("DeepFool is an untargeted attack")
+    if num_classes < 2:
+        raise ValueError("num_classes must be at least 2")
+    if max_iter < 0:
+        raise ValueError("max_iter must be non-negative")
 
-    # COMMENTED
-    # is_cuda = torch.cuda.is_available()
-    #
-    # if is_cuda:
-    #     print("Using GPU")
-    #     image = image.cuda()
-    #     net = net.cuda()
-    # else:
-    #     print("Using CPU")
-    device = image.device
+    del targets, kwargs
+    adversarials = inputs.detach().clone()
 
-    f_image = net.forward(Variable(image[None, :, :, :], requires_grad=True)).data.cpu().numpy().flatten()
-    I = (np.array(f_image)).flatten().argsort()[::-1]
+    for index in range(len(inputs)):
+        original = inputs[index].detach()
+        label = int(labels[index])
+        total_step = torch.zeros_like(original)
+        candidate = original
 
-    I = I[0:num_classes]
-    label = I[0]
+        with torch.no_grad():
+            if model(original.unsqueeze(0)).argmax(dim=1).item() != label:
+                continue
 
-    input_shape = image.cpu().numpy().shape
-    pert_image = copy.deepcopy(image)
-    w = np.zeros(input_shape)
-    r_tot = np.zeros(input_shape)
+        for _ in range(max_iter):
+            boundary_step = _linearized_step(
+                model, candidate, label=label, num_classes=num_classes
+            )
+            if boundary_step is None:
+                break
 
-    loop_i = 0
+            total_step = total_step + boundary_step
+            candidate = (original + (1.0 + overshoot) * total_step).clamp(0.0, 1.0)
+            with torch.no_grad():
+                if model(candidate.unsqueeze(0)).argmax(dim=1).item() != label:
+                    break
 
-    x = Variable(pert_image[None, :], requires_grad=True)
-    fs = net.forward(x)
-    fs_list = [fs[0, I[k]] for k in range(num_classes)]
-    k_i = label
+        adversarials[index] = candidate.detach()
 
-    while k_i == label and loop_i < max_iter:
-
-        pert = np.inf
-        fs[0, I[0]].backward(retain_graph=True)
-        grad_orig = x.grad.data.cpu().numpy().copy().squeeze(0)
-
-        for k in range(1, num_classes):
-            x.grad = None  # MODIFIED: zero_gradients(x)
-
-            fs[0, I[k]].backward(retain_graph=True)
-            cur_grad = x.grad.data.cpu().numpy().copy().squeeze(0)
-
-            # set new w_k and new f_k
-            w_k = cur_grad - grad_orig
-            f_k = (fs[0, I[k]] - fs[0, I[0]]).data.cpu().numpy()
-
-            pert_k = abs(f_k) / (np.linalg.norm(w_k.flatten()) + 1e-8)
-
-            # determine which w_k to use
-            if pert_k < pert:
-                pert = pert_k
-                w = w_k
-
-        # compute r_i and r_tot
-        # Added 1e-4 for numerical stability
-        r_i = (pert + 1e-4) * w / (np.linalg.norm(w) + 1e-8)
-        r_tot = np.float32(r_tot + r_i)
-
-        pert_image = (image + (1 + overshoot) * torch.from_numpy(r_tot).to(device)).clamp(0, 1)
-        # if is_cuda:
-        #     pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot).cuda()
-        # else:
-        #     pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot)
-
-        x = Variable(pert_image[None, :], requires_grad=True)
-        fs = net.forward(x)
-        k_i = np.argmax(fs.data.cpu().numpy().flatten())
-
-        loop_i += 1
-
-    r_tot = (1 + overshoot) * r_tot
-
-    return r_tot, loop_i, label, k_i, pert_image
-
-
-def deepfool_attack(model: nn.Module,
-                    inputs: Tensor,
-                    labels: Tensor,
-                    targets: Optional[Tensor] = None,
-                    targeted: bool = False, **kwargs) -> Tensor:
-    adv_inputs = []
-    for input in inputs:
-        adv_inputs.append(deepfool(image=input, net=model, **kwargs)[-1])
-    return torch.stack(adv_inputs)
+    return adversarials
