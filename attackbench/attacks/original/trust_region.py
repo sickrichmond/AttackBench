@@ -1,263 +1,265 @@
-# Adapted from https://github.com/amirgholami/TRAttack/blob/master/trattack/attack_methods.py
-from copy import deepcopy
+"""First-order trust-region attack implemented for AttackBench.
+
+The attack repeatedly builds a linear model of a class-margin objective and
+restricts each proposed update to a local trust radius. The adaptive variant
+uses agreement between predicted and observed margin improvement to resize
+that radius.
+"""
+
 from typing import Optional
 
-import numpy as np
 import torch
-#################################################
-## Select TR Attack Index
-#################################################
 from torch import Tensor, nn
 
-
-def select_index(model, data, c=9, p=2, worst_case=False):
-    '''
-    Select the attack target class
-    '''
-    model.eval()
-    # COMMENTED: data = data.cuda()
-    data.requires_grad = True
-    model.zero_grad()
-    output = model(data)
-    output, ind = torch.sort(output, descending=True)
-    n = len(data)
-    q = 2
-    if p == 8:
-        q = 1  # We need to use conjugate norm
-
-    true_out = output[range(n), n * [0]]
-    # Backpropogate a batch of images
-    z_true = torch.sum(true_out)
-    data.grad = None
-    z_true.backward(retain_graph=True)
-    true_grad = data.grad
-    pers = torch.zeros(len(data), 1 + c).cuda()
-
-    for i in range(1, 1 + c):
-        z = torch.sum(output[:, i])
-        data.grad = None
-        model.zero_grad()
-        z.backward(retain_graph=True)
-        grad = data.grad  # dzi/dx
-        grad_diff = torch.norm(grad.data.view(n, -1) - true_grad.data.view(n, -1), p=q, dim=1)  # batch_size x 1
-        pers[:, i] = (true_out.data - output[:, i].data) / grad_diff  # batch_size x 1
-
-    if not worst_case:
-        pers[range(n), n * [0]] = np.inf
-        pers[pers < 0] = 0
-        per, index = torch.min(pers, 1)  # batch_size x 1
-    else:
-        pers[range(n), n * [0]] = -np.inf
-        per, index = torch.max(pers, 1)  # batch_size x 1
-
-    output = []
-    for i in range(data.size(0)):
-        output.append(ind[i, index[i]].item())
-    return torch.from_numpy(np.array(output)).to(data.device)  # MODIFIED: return np.array(output)
+_SUPPORTED_NORMS = {"l2", "linf"}
+_NUMERICAL_EPS = 1e-12
 
 
-#################################################
-## TR First Order Attack
-#################################################
-def _tr_attack(model, data, true_ind, target_ind, eps, p=2):
-    """Generate an adversarial pertubation using the TR method.
-    Pick the top false label and perturb towards that.
-    First-order attack
+def _dual_norm(gradients: Tensor, threat_model: str) -> Tensor:
+    flat = gradients.flatten(1)
+    order = 1 if threat_model == "linf" else 2
+    return flat.norm(p=order, dim=1)
 
-    Args:
-        data: input image to perturb
-        true_ind: is true label
-        target_ind: is the attack label
+
+def _steepest_direction(gradients: Tensor, threat_model: str) -> Tensor:
+    if threat_model == "linf":
+        return gradients.sign()
+
+    lengths = gradients.flatten(1).norm(p=2, dim=1)
+    shape = (len(gradients),) + (1,) * (gradients.ndim - 1)
+    return gradients / lengths.clamp_min(_NUMERICAL_EPS).view(shape)
+
+
+def _perturbation_size(perturbation: Tensor, threat_model: str) -> Tensor:
+    flat = perturbation.flatten(1)
+    if threat_model == "linf":
+        return flat.abs().amax(dim=1)
+    return flat.norm(p=2, dim=1)
+
+
+def _validate_inputs(
+    inputs: Tensor,
+    labels: Tensor,
+    targets: Optional[Tensor],
+    targeted: bool,
+    threat_model: str,
+    eps: float,
+    num_candidates: int,
+    num_steps: int,
+) -> None:
+    if threat_model not in _SUPPORTED_NORMS:
+        available = ", ".join(sorted(_SUPPORTED_NORMS))
+        raise ValueError(
+            f"Unsupported threat model {threat_model!r}; choose one of: {available}"
+        )
+    if inputs.ndim < 2:
+        raise ValueError("inputs must have a batch dimension and at least one feature")
+    if labels.numel() != len(inputs):
+        raise ValueError("labels must contain one class index per input")
+    if targeted and targets is None:
+        raise ValueError("targets are required when targeted=True")
+    if targets is not None and targets.numel() != len(inputs):
+        raise ValueError("targets must contain one class index per input")
+    if eps <= 0:
+        raise ValueError("eps must be positive")
+    if num_candidates <= 0:
+        raise ValueError("c must be positive")
+    if num_steps < 0:
+        raise ValueError("iter must be non-negative")
+
+
+def _select_competitors(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    num_candidates: int,
+    threat_model: str,
+) -> Tensor:
+    """Choose the closest locally linearized non-label class for each input."""
+    points = inputs.detach().requires_grad_(True)
+    logits = model(points)
+    if logits.ndim != 2 or logits.shape[0] != len(inputs):
+        raise ValueError("model must return a [batch, classes] logits tensor")
+    if logits.shape[1] < 2:
+        raise ValueError("trust-region attacks require at least two model classes")
+    if labels.min().item() < 0 or labels.max().item() >= logits.shape[1]:
+        raise ValueError("labels contain a class index outside the model output")
+
+    candidate_count = min(num_candidates, logits.shape[1] - 1)
+    ranked_logits = logits.detach().clone()
+    ranked_logits.scatter_(1, labels[:, None], -torch.inf)
+    candidates = ranked_logits.topk(candidate_count, dim=1).indices
+
+    rows = torch.arange(len(inputs), device=inputs.device)
+    true_logits = logits[rows, labels]
+    best_distance = torch.full(
+        (len(inputs),), torch.inf, device=inputs.device, dtype=inputs.dtype
+    )
+    selected = candidates[:, 0].clone()
+
+    for rank in range(candidate_count):
+        candidate = candidates[:, rank]
+        margin = logits[rows, candidate] - true_logits
+        gradients = torch.autograd.grad(
+            margin.sum(),
+            points,
+            retain_graph=rank + 1 < candidate_count,
+        )[0]
+        estimate = (-margin.detach()).clamp_min(0)
+        estimate = estimate / _dual_norm(gradients, threat_model).clamp_min(
+            _NUMERICAL_EPS
+        )
+        better = estimate < best_distance
+        best_distance = torch.where(better, estimate, best_distance)
+        selected = torch.where(better, candidate, selected)
+
+    return selected.detach()
+
+
+def _targeted_reference_classes(logits: Tensor, targets: Tensor) -> Tensor:
+    """Return the strongest class other than the requested target."""
+    competing_logits = logits.detach().clone()
+    competing_logits.scatter_(1, targets[:, None], -torch.inf)
+    return competing_logits.argmax(dim=1)
+
+
+def _margin(
+    logits: Tensor,
+    desired_classes: Tensor,
+    reference_classes: Tensor,
+) -> Tensor:
+    rows = torch.arange(len(logits), device=logits.device)
+    return logits[rows, desired_classes] - logits[rows, reference_classes]
+
+
+def tr_attack(
+    model: nn.Module,
+    inputs: Tensor,
+    labels: Tensor,
+    threat_model: str,
+    targets: Optional[Tensor] = None,
+    targeted: bool = False,
+    adaptive: bool = False,
+    eps: float = 0.001,
+    c: int = 9,
+    iter: int = 100,
+) -> Tensor:
+    """Generate adversarial inputs using first-order trust-region steps.
+
+    eps is the initial per-step trust radius, not a global perturbation budget.
+    For untargeted attacks, c controls how many high-logit classes are
+    considered when selecting the initial competing class.
     """
+    _validate_inputs(inputs, labels, targets, targeted, threat_model, eps, c, iter)
+
+    labels = labels.detach().to(device=inputs.device, dtype=torch.long).reshape(-1)
+    if targets is not None:
+        targets = (
+            targets.detach().to(device=inputs.device, dtype=torch.long).reshape(-1)
+        )
+
+    original = inputs.detach()
+    current = original.clone()
+    best = original.clone()
+    best_size = torch.full(
+        (len(inputs),), torch.inf, device=inputs.device, dtype=inputs.dtype
+    )
+    found = torch.zeros(len(inputs), device=inputs.device, dtype=torch.bool)
+    radii = torch.full_like(best_size, float(eps))
+
+    max_radius = (
+        1.0 if threat_model == "linf" else float(inputs[0].numel()) ** 0.5
+    )
+    min_radius = max(float(eps) * 1e-3, 1e-7)
+
+    was_training = model.training
     model.eval()
-    data = data.cuda()
-    data.requires_grad = True
-    model.zero_grad()
-    output = model(data)
-    n = len(data)
+    try:
+        if targeted:
+            desired_classes = targets
+        else:
+            desired_classes = _select_competitors(
+                model, current, labels, c, threat_model
+            )
 
-    q = 2
-    if p == 8:
-        q = 1
+        radius_shape = (len(inputs),) + (1,) * (inputs.ndim - 1)
 
-    output_g = output[range(n), target_ind] - output[range(n), true_ind]
-    z = torch.sum(output_g)
+        for _ in range(iter):
+            points = current.detach().requires_grad_(True)
+            logits = model(points)
+            predictions = logits.argmax(dim=1)
 
-    data.grad = None
-    model.zero_grad()
-    z.backward()
-    update = deepcopy(data.grad.data)
-    update = update.view(n, -1)
-    per = (-output_g.data.view(n, -1) + 0.) / (torch.norm(update, p=q, dim=1).view(n, 1) + 1e-6)
+            if targeted:
+                active = predictions.ne(targets)
+                reference_classes = _targeted_reference_classes(logits, targets)
+            else:
+                active = predictions.eq(labels)
+                reference_classes = labels
 
-    if p == 8:
-        update = torch.sign(update)
-    elif p == 2:
-        update = update.view(n, -1)
-        update = update / (torch.norm(update, p=2, dim=1).view(n, 1) + 1e-6)
-    per = per.view(-1)
-    per_mask = per > eps
-    per_mask = per_mask.nonzero().view(-1)
-    # set overshoot for small pers
-    per[per_mask] = eps
-    X_adv = data.data + (((per + 1e-4) * 1.02).view(n, -1) * update.view(n, -1)).view(data.size())
-    X_adv = torch.clamp(X_adv, torch.min(data.data), torch.max(data.data))
-    return X_adv
+            if not active.any():
+                break
 
+            objective = _margin(logits, desired_classes, reference_classes)
+            gradients = torch.autograd.grad(objective[active].sum(), points)[0]
+            directions = _steepest_direction(gradients, threat_model)
 
-def tr_attack_iter(model, data, target, eps, c=9, p=2, iter=100, worst_case=False):
-    X_adv = data.clone()  # MODIFIED: X_adv = deepcopy(data.cuda())
-    target_ind = select_index(model, data, c=c, p=p, worst_case=worst_case)
+            linear_distance = (-objective.detach()).clamp_min(0)
+            linear_distance = linear_distance / _dual_norm(
+                gradients, threat_model
+            ).clamp_min(_NUMERICAL_EPS)
+            proposed_size = torch.minimum(
+                radii, linear_distance.mul(1.02).add(1e-6)
+            )
+            proposed_size = torch.where(
+                active, proposed_size, torch.zeros_like(proposed_size)
+            )
 
-    update_num = 0.
-    for i in range(iter):
-        model.eval()
-        Xdata, Ytarget = X_adv, target  # MODIFIED: Xdata, Ytarget = X_adv, target.cuda()
-        # First check if the input is correctly classfied before attack
-        Xoutput = model(Xdata)
-        Xpred = Xoutput.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
-        tmp_mask = Xpred.view_as(Ytarget) == Ytarget.data  # get index
-        update_num += torch.sum(tmp_mask.long())
-        # if all images are incorrectly classfied the attack is successful and exit
-        if torch.sum(tmp_mask.long()) < 1:
-            return X_adv, update_num  # MODIFIED: return X_adv.cpu(), update_num
-        attack_mask = tmp_mask.nonzero().view(-1)
-        X_adv[attack_mask, :] = _tr_attack(model, X_adv[attack_mask, :], target[attack_mask], target_ind[attack_mask],
-                                           eps, p=p)
-    return X_adv, update_num  # MODIFIED: return X_adv.cpu(), update_num
+            candidate = current + directions * proposed_size.view(radius_shape)
+            candidate = candidate.clamp(0.0, 1.0).detach()
 
+            with torch.no_grad():
+                candidate_logits = model(candidate)
+                candidate_predictions = candidate_logits.argmax(dim=1)
+                success = (
+                    candidate_predictions.eq(targets)
+                    if targeted
+                    else candidate_predictions.ne(labels)
+                )
 
-#################################################
-## TR First Order Attack Adaptive
-#################################################
-def _tr_attack_adaptive(model, data, true_ind, target_ind, eps, p=2):
-    """Generate an adversarial pertubation using the TR method with adaptive
-    trust radius.
-    Args:
-        data: input image to perturb
-        true_ind: is true label
-        target_ind: is the attack label
-    """
-    model.eval()
-    data = data.cuda()
-    data.requires_grad = True
-    model.zero_grad()
-    output = model(data)
-    n = len(data)
+                sizes = _perturbation_size(candidate - original, threat_model)
+                improved = success & (sizes < best_size)
+                best[improved] = candidate[improved]
+                best_size = torch.where(improved, sizes, best_size)
+                found |= success
 
-    q = 2
-    if p == 8:
-        q = 1
+                if adaptive:
+                    actual_gain = _margin(
+                        candidate_logits, desired_classes, reference_classes
+                    ) - objective.detach()
+                    actual_step = candidate - current
+                    predicted_gain = (gradients * actual_step).flatten(1).sum(dim=1)
+                    valid_prediction = predicted_gain > _NUMERICAL_EPS
+                    agreement = torch.full_like(actual_gain, -torch.inf)
+                    agreement[valid_prediction] = (
+                        actual_gain[valid_prediction]
+                        / predicted_gain[valid_prediction]
+                    )
 
-    output_g = output[range(n), target_ind] - output[range(n), true_ind]
-    z = torch.sum(output_g)
+                    accepted = active & (actual_gain > 0) & (agreement >= 0.1)
+                    current[accepted] = candidate[accepted]
 
-    data.grad = None
-    model.zero_grad()
-    z.backward()
-    update = deepcopy(data.grad.data)
-    update = update.view(n, -1)
-    per = (-output_g.data.view(n, -1) + 0.) / (torch.norm(update, p=q, dim=1).view(n, 1) + 1e-6)
+                    shrink = active & (agreement < 0.25)
+                    expand = (
+                        active
+                        & (agreement > 0.75)
+                        & (proposed_size >= radii * 0.99)
+                    )
+                    radii[shrink] *= 0.5
+                    radii[expand] *= 2.0
+                    radii.clamp_(min=min_radius, max=max_radius)
+                else:
+                    current[active] = candidate[active]
 
-    if p == 8:
-        update = torch.sign(update)
-    elif p == 2:
-        update = update.view(n, -1)
-        update = update / (torch.norm(update, p=2, dim=1).view(n, 1) + 1e-6)
-
-    ### set large per to eps
-    per = per.view(-1)
-    eps = eps.view(-1)
-    per_mask = per > eps
-    per_mask = per_mask.nonzero().view(-1)
-    # set overshoot for small pers
-    per[per_mask] = eps[per_mask]
-    per = per.view(n, -1)
-    eps = deepcopy(per)
-    X_adv = data.data + (1.02 * (eps + 1e-4) * update.view(n, -1)).view(data.size())
-    X_adv = torch.clamp(X_adv, torch.min(data.data), torch.max(data.data))
-
-    ### update eps magnitude
-    ori_diff = -output_g.data + 0.0
-
-    adv_output = model(X_adv)
-    adv_diff = adv_output[range(n), true_ind] - output[range(n), target_ind]
-
-    eps = eps.view(-1)
-    obj_diff = (ori_diff - adv_diff) / eps
-
-    increase_ind = obj_diff > 0.9
-    increase_ind = increase_ind.nonzero().view(-1)
-
-    decrease_ind = obj_diff < 0.5
-    decrease_ind = decrease_ind.nonzero().view(-1)
-
-    eps[increase_ind] = eps[increase_ind] * 1.2
-    eps[decrease_ind] = eps[decrease_ind] / 1.2
-
-    if p == 2:
-        eps_max = 0.05
-        eps_min = 0.0005
-        eps_mask = eps > eps_max
-        eps_mask = eps_mask.nonzero().view(-1)
-        eps[eps_mask] = eps_max
-        eps_mask = eps < eps_min
-        eps_mask = eps_mask.nonzero().view(-1)
-        eps[eps_mask] = eps_min
-
-    elif p == 8:
-        eps_max = 0.01
-        eps_min = 0.0001
-        eps_mask = eps > eps_max
-        eps_mask = eps_mask.nonzero().view(-1)
-        eps[eps_mask] = eps_max
-        eps_mask = eps < eps_min
-        eps_mask = eps_mask.nonzero().view(-1)
-        eps[eps_mask] = eps_min
-
-    eps = eps.view(n, -1)
-    return X_adv, eps
-
-
-def tr_attack_adaptive_iter(model, data, target, eps, c=9, p=2, iter=100, worst_case=False):
-    X_adv = data.clone()  # MODIFIED: X_adv = deepcopy(data.cuda())
-    target_ind = select_index(model, data, c=c, p=p, worst_case=worst_case)
-
-    update_num = 0.
-    eps = torch.from_numpy(np.array([eps] * len(data))).view(len(data), -1)
-    eps = eps.float().to(data.device)  # MODIFIED: eps = eps.type(torch.FloatTensor).cuda()
-    for i in range(iter):
-        model.eval()
-        Xdata, Ytarget = X_adv, target  # MODIFIED: Xdata, Ytarget = X_adv, target.cuda()
-        Xoutput = model(Xdata)
-        Xpred = Xoutput.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
-        tmp_mask = Xpred.view_as(Ytarget) == Ytarget.data  # get index
-        update_num += torch.sum(tmp_mask.long())
-        if torch.sum(tmp_mask.long()) < 1:
-            return X_adv, update_num  # MODIFIED: return X_adv.cpu(), update_num
-        attack_mask = tmp_mask.nonzero().view(-1)
-        X_adv[attack_mask, :], eps[attack_mask, :] = _tr_attack_adaptive(model, X_adv[attack_mask, :],
-                                                                         target[attack_mask], target_ind[attack_mask],
-                                                                         eps[attack_mask, :], p=p)
-    return X_adv, update_num  # MODIFIED: return X_adv.cpu(), update_num
-
-
-_norms = {
-    'l2': 2,
-    'linf': 8,
-}
-
-
-def tr_attack(model: nn.Module,
-              inputs: Tensor,
-              labels: Tensor,
-              threat_model: str,
-              targets: Optional[Tensor] = None,
-              targeted: bool = False,
-              adaptive: bool = False,
-              eps: float = 0.001,
-              c: int = 9,
-              iter: int = 100) -> Tensor:
-    attack_func = tr_attack_adaptive_iter if adaptive else tr_attack_iter
-    adv_inputs = attack_func(model=model, data=inputs, target=labels, p=_norms[threat_model], eps=eps, c=c, iter=iter)
-    return adv_inputs[0]
+        return torch.where(found.view(radius_shape), best, current).detach()
+    finally:
+        model.train(was_training)
