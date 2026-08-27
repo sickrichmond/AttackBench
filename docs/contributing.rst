@@ -21,7 +21,7 @@ Clone and install in development mode:
 
 .. code-block:: bash
 
-   git clone https://github.com/attackbench/AttackBench.git
+   git clone https://github.com/sickrichmond/AttackBench.git
    cd AttackBench
    pip install -e ".[dev]"
 
@@ -109,7 +109,7 @@ The built documentation will be available in ``docs/_build/html/``.
 Reporting Issues
 ----------------
 
-Please report issues on GitHub: https://github.com/attackbench/AttackBench/issues
+Please report issues on GitHub: https://github.com/sickrichmond/AttackBench/issues
 
 Contact
 -------

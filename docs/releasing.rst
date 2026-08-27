@@ -11,7 +11,7 @@ One-time repository setup
 Create protected GitHub environments named testpypi and pypi. Configure a GitHub
 Actions trusted publisher for the attackbenchlib project on both indexes with:
 
-* owner: attackbench
+* owner: sickrichmond
 * repository: AttackBench
 * workflow: release.yml
 * environment: testpypi or pypi, matching the target index
@@ -64,7 +64,7 @@ the project version:
 .. code-block:: bash
 
    git tag -s v2.0.0 -m "AttackBenchLib 2.0.0"
-   git push upstream v2.0.0
+   git push origin v2.0.0
 
 The tag starts the same build/test workflow and sends its artifact to the protected
 pypi environment. A maintainer may instead manually select repository=pypi from main;

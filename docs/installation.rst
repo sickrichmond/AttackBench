@@ -130,7 +130,7 @@ To install from source for development:
 
 .. code-block:: bash
 
-   git clone https://github.com/attackbench/AttackBench.git
+   git clone https://github.com/sickrichmond/AttackBench.git
    cd AttackBench
    pip install -e ".[dev]"
 

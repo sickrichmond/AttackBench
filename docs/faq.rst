@@ -374,7 +374,7 @@ See :doc:`contributing` for details.
 Where do I report bugs?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Open an issue on GitHub: https://github.com/attackbench/AttackBench/issues
+Open an issue on GitHub: https://github.com/sickrichmond/AttackBench/issues
 
 Citation
 --------

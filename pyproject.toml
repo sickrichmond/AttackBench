@@ -39,10 +39,10 @@ dependencies = [
 [project.urls]
 Homepage = "https://attackbench.github.io/"
 Documentation = "https://attackbench.readthedocs.io/en/latest/"
-Repository = "https://github.com/attackbench/AttackBench"
-Issues = "https://github.com/attackbench/AttackBench/issues"
+Repository = "https://github.com/sickrichmond/AttackBench"
+Issues = "https://github.com/sickrichmond/AttackBench/issues"
 Paper = "https://doi.org/10.1609/aaai.v39i3.32263"
-Changelog = "https://github.com/attackbench/AttackBench/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/sickrichmond/AttackBench/blob/main/CHANGELOG.md"
 
 [project.scripts]
 attackbench-acceptance = "attackbench.acceptance:main"
@@ -109,6 +109,9 @@ docs = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["attackbench*"]
+
+[tool.setuptools.package-data]
+"attackbench.datasets.subsets" = ["*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

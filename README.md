@@ -6,9 +6,9 @@ Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Dem
 
 **Paper:** [https://arxiv.org/pdf/2404.19460](https://arxiv.org/pdf/2404.19460)
 
-**Changelog:** [2.0.0 release notes](https://github.com/attackbench/AttackBench/blob/main/CHANGELOG.md)
+**Changelog:** [2.0.0 release notes](https://github.com/sickrichmond/AttackBench/blob/main/CHANGELOG.md)
 
-**Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/attackbench/AttackBench/blob/main/examples/AttackBenchLib.ipynb)
+**Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sickrichmond/AttackBench/blob/main/examples/AttackBenchLib.ipynb)
 ## How it works
 AttackBenchLib is a library that implements the framework described in the AttackBench paper in a new modular, user-friendly way in order to make multiple workflows and kinds of analysis possible through the use of a single library. 
 The <code>AttackBench</code> framework aims to fairly compare gradient-based attacks based on their security evaluation curves. To this end, we derive a process involving five distinct stages, as depicted below.
@@ -116,7 +116,7 @@ On Google Colab, install with all dependencies:
 ### Install from source (development)
 
 ```bash
-git clone https://github.com/attackbench/AttackBench.git
+git clone https://github.com/sickrichmond/AttackBench.git
 cd AttackBench
 pip install -e ".[dev]"
 ```
