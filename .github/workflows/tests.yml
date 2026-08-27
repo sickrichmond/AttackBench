@@ -137,7 +137,9 @@ jobs:
           twine check dist/*
 
       - name: Install the wheel
-        run: pip install --force-reinstall --no-deps dist/*.whl
+        # Install declared runtime dependencies too. Torch is already satisfied by the
+        # CPU wheel above, so pip will not replace it with a CUDA build.
+        run: pip install dist/*.whl
 
       - name: Smoke-test the installed wheel outside the checkout
         working-directory: /tmp
