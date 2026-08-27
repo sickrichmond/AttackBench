@@ -46,3 +46,22 @@ def test_robustbench_loader_does_not_hide_nested_import_errors(monkeypatch):
 
     with pytest.raises(ModuleNotFoundError, match="dependency"):
         robustbench_compat.get_robustbench_loader()
+
+
+def test_mit_clean_model_registry_uses_robustbench_or_permissive_sources():
+    from attackbench.models.registry import MODEL_CONFIGS
+
+    assert "stutz_2020" not in MODEL_CONFIGS
+    assert "xiao_2020" not in MODEL_CONFIGS
+    assert MODEL_CONFIGS["wang_2023_small"] == {
+        "name": "Wang2023Better_WRN-28-10",
+        "source": "robustbench",
+        "dataset": "cifar10",
+        "threat_model": "Linf",
+    }
+    assert MODEL_CONFIGS["wang_2023_large"] == {
+        "name": "Wang2023Better_WRN-70-16",
+        "source": "robustbench",
+        "dataset": "cifar10",
+        "threat_model": "Linf",
+    }

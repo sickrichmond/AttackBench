@@ -1,7 +1,6 @@
-"""
-This code has been taken from the authors' repository.
-https://github.com/huanzhang12/CROWN-IBP
-"""
+# Derived from CROWN-IBP.
+# Copyright (c) 2019 Huan Zhang, Hongge Chen and Chaowei Xiao.
+# Licensed under BSD-2-Clause; see THIRD_PARTY_NOTICES.md.
 import torch.nn as nn
 
 
@@ -20,7 +19,7 @@ def IBP_large(in_ch, in_dim, linear_size=512):
         nn.Flatten(),
         nn.Linear((in_dim // 2) * (in_dim // 2) * 128, linear_size),
         nn.ReLU(),
-        nn.Linear(linear_size, 10)
+        nn.Linear(linear_size, 10),
     )
     return model
 
@@ -65,7 +64,7 @@ def model_cnn_10layer(in_ch, in_dim, width):
         nn.ReLU(),
         # input 2*2*64
         nn.Flatten(),
-        nn.Linear(2 * 2 * 64 * width, 10)
+        nn.Linear(2 * 2 * 64 * width, 10),
     )
     return model
 
@@ -85,6 +84,6 @@ def model_cnn_4layer(in_ch, in_dim, width, linear_size):
         nn.ReLU(),
         nn.Linear(linear_size, linear_size),
         nn.ReLU(),
-        nn.Linear(linear_size, 10)
+        nn.Linear(linear_size, 10),
     )
     return model

@@ -24,6 +24,12 @@ result-compatible with 1.x.
   and FMN uses norm-specific step-size defaults.
 - The package supports Python 3.9 through 3.13 and keeps attack, model, metrics,
   documentation, and development dependencies in separate extras.
+- DeepFool, sparse PGD-L0, and the FMN L1 projection are now independent
+  implementations based on their published algorithms rather than unlicensed source
+  adaptations.
+- The legacy `stutz_2020` and `xiao_2020` bundled model entries were removed because
+  their source terms are not compatible with an MIT-only distribution. The Wang 2023
+  registry keys now use the corresponding RobustBench models.
 
 ### Added
 
