@@ -39,13 +39,10 @@ from .datasets.registry import get_loader
 def load_model(model_name, dataset='cifar10', threat_model='Linf', **kwargs):
     """Load a RobustBench model and attach AttackBench metadata for automatic extraction."""
     try:
-        from robustbench import load_model as _rb_load_model
+        from .models.robustbench_compat import get_robustbench_loader
+
+        _rb_load_model = get_robustbench_loader()
     except ModuleNotFoundError as e:
-        if 'autoattack' in str(e):
-            raise ImportError(
-                "robustbench requires 'autoattack', which failed to install from PyPI.\n"
-                "Fix with: pip install git+https://github.com/fra31/auto-attack"
-            ) from e
         raise ImportError(
             "robustbench is required to load models. "
             "Install it with: pip install attackbenchlib[models]"

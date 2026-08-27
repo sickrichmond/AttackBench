@@ -174,13 +174,10 @@ MODEL_CONFIGS.update({
 def get_robustbench_model(name: str, dataset: str, threat_model: str) -> nn.Module:
     """Get model from RobustBench"""
     try:
-        from robustbench import load_model
+        from .robustbench_compat import get_robustbench_loader
+
+        load_model = get_robustbench_loader()
     except ModuleNotFoundError as e:
-        if 'autoattack' in str(e):
-            raise ImportError(
-                "robustbench requires 'autoattack', which failed to install from PyPI.\n"
-                "Fix with: pip install git+https://github.com/fra31/auto-attack"
-            ) from e
         raise ImportError(
             "robustbench is required to load RobustBench models. "
             "Install it with: pip install attackbenchlib[models]"
