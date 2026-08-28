@@ -144,5 +144,5 @@ jobs:
       - name: Smoke-test the installed wheel outside the checkout
         working-directory: /tmp
         run: |
-          python -c "import attackbench; assert attackbench.__version__ == '2.0.0'"
+          python -c "import attackbench, pathlib; assert attackbench.__version__ != '0+unknown'; assert 'site-packages' in pathlib.Path(attackbench.__file__).parts"
           python -c "from importlib.resources import files; assert files('attackbench.datasets.subsets').joinpath('imagenet-5000-val.txt').is_file()"
