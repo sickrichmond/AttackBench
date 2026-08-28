@@ -1,6 +1,7 @@
 import os
 import urllib.request
 from functools import partial
+from typing import Optional
 
 import torch
 from torch import nn
@@ -152,6 +153,18 @@ MODEL_CONFIGS.update(
             "dataset": "cifar10",
             "threat_model": "Linf",
         },
+        "stutz_2020": {
+            "name": "Stutz2020CCAT",
+            "source": "original",
+            "dataset": "cifar10",
+            "threat_model": "Linf",
+        },
+        "xiao_2020": {
+            "name": "Xiao2020KWTA",
+            "source": "original",
+            "dataset": "cifar10",
+            "threat_model": "Linf",
+        },
         "wang_2023_small": {
             "name": "Wang2023Better_WRN-28-10",
             "source": "robustbench",
@@ -183,12 +196,21 @@ def get_robustbench_model(name: str, dataset: str, threat_model: str) -> nn.Modu
     return model
 
 
-def get_original_model(name: str, dataset: str, threat_model: str) -> nn.Module:
-    """Get original model"""
-    model = load_original_model(
-        model_name=name, dataset=dataset, threat_model=threat_model
+def get_original_model(
+    name: str,
+    dataset: str,
+    threat_model: str,
+    checkpoint_path: Optional[str] = None,
+    accept_license: bool = False,
+) -> nn.Module:
+    """Get an original or independently compatible model."""
+    return load_original_model(
+        model_name=name,
+        dataset=dataset,
+        threat_model=threat_model,
+        checkpoint_path=checkpoint_path,
+        accept_license=accept_license,
     )
-    return model
 
 
 _model_getters = {
@@ -205,6 +227,8 @@ def get_model(
     requires_grad: bool = False,
     enforce_box: bool = True,
     num_max_propagations: int = None,
+    checkpoint_path: Optional[str] = None,
+    accept_license: bool = False,
 ) -> BenchModel:
     """
     Get model wrapped in BenchModel.
@@ -216,6 +240,8 @@ def get_model(
         requires_grad: Whether model requires gradients
         enforce_box: Whether to enforce box constraint [0,1]
         num_max_propagations: Max forward/backward propagations
+        checkpoint_path: Local checkpoint path for models whose assets are external
+        accept_license: Confirm acceptance of an external checkpoint's stated terms
 
     Returns:
         BenchModel wrapped model
@@ -237,8 +263,20 @@ def get_model(
         )
 
     if source == "local":
+        if checkpoint_path is not None:
+            raise ValueError("Local registry models do not accept checkpoint_path")
         base_model = _model_getters[source](model_name_internal, dataset)
+    elif source == "original":
+        base_model = _model_getters[source](
+            model_name_internal,
+            dataset,
+            threat_model,
+            checkpoint_path=checkpoint_path,
+            accept_license=accept_license,
+        )
     else:
+        if checkpoint_path is not None:
+            raise ValueError("RobustBench models do not accept checkpoint_path")
         base_model = _model_getters[source](model_name_internal, dataset, threat_model)
 
     model = BenchModel(
