@@ -75,6 +75,9 @@ whatever a given model needs, such as timm):
 
    pip install "attackbenchlib[models]"
 
+The stutz_2020 and xiao_2020 entries use external checkpoints with additional
+licensing steps; see :doc:`external_models`.
+
 **Metrics**
 
 Enable the analysis subpackage (its code only needs numpy, already a core dependency,

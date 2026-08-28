@@ -55,6 +55,7 @@ Quick Install
 
    installation
    quickstart
+   external_models
    architecture
    optimality
    api/index

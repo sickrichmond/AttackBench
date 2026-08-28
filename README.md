@@ -226,7 +226,9 @@ by email at `antonio.cina@unige.it`.
 ## License
 
 AttackBench is distributed under the [MIT License](LICENSE).
-See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for bundled and adapted components.
+See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for bundled components and optional
+external model assets. The `stutz_2020` and `xiao_2020` checkpoints are not included
+in the MIT distribution and remain subject to their upstream terms.
 
 ## Acknowledgements
 AttackBench has been partially developed with the support of European Union’s [ELSA – European Lighthouse on Secure and Safe AI](https://elsa-ai.eu), Horizon Europe, grant agreement No. 101070617, and [Sec4AI4Sec - Cybersecurity for AI-Augmented Systems](https://www.sec4ai4sec-project.eu), Horizon Europe, grant agreement No. 101120393.

@@ -2,6 +2,18 @@
 
 All notable user-facing changes to AttackBenchLib are documented here.
 
+## 2.0.1 (unreleased)
+
+### Added
+
+- Restored the `stutz_2020` and `xiao_2020` model registry entries using new,
+  independently implemented MIT architecture definitions. No upstream source or
+  checkpoint is bundled.
+- Stutz's author-hosted checkpoint is available only after explicit acknowledgement of
+  its noncommercial terms. Xiao's checkpoint must be supplied by the user because its
+  upstream repository states no license. Both loaders verify SHA-256 checksums and use
+  restricted weights-only deserialization.
+
 ## 2.0.0
 
 AttackBenchLib 2.0.0 corrects the benchmark protocol and is intentionally not
