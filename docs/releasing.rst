@@ -52,8 +52,8 @@ Run the publish workflow manually with repository=testpypi. The workflow:
 4. installs the exact uploaded version from TestPyPI in a clean job.
 
 Inspect that run before creating the final tag. Distribution filenames are immutable:
-if 2.0.0 already exists on TestPyPI, increment to a pre-release version rather than
-enabling duplicate-skipping.
+if the target version already exists on TestPyPI, increment to a pre-release version
+rather than enabling duplicate-skipping.
 
 PyPI
 ----
@@ -63,8 +63,8 @@ the project version:
 
 .. code-block:: bash
 
-   git tag -s v2.0.0 -m "AttackBenchLib 2.0.0"
-   git push origin v2.0.0
+   git tag -s v2.0.1 -m "AttackBenchLib 2.0.1"
+   git push origin v2.0.1
 
 The tag starts the same build/test workflow and sends its artifact to the protected
 pypi environment. A maintainer may instead manually select repository=pypi from main;

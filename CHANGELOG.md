@@ -2,7 +2,7 @@
 
 All notable user-facing changes to AttackBenchLib are documented here.
 
-## 2.0.1 (unreleased)
+## 2.0.1 (2026-08-28)
 
 ### Added
 

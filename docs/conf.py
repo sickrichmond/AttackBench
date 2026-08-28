@@ -38,7 +38,7 @@ try:
 
     release = _pkg_version('attackbenchlib')
 except Exception:  # building from a checkout without installing
-    release = '2.0.0'
+    release = '2.0.1'
 version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------

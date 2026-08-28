@@ -6,7 +6,7 @@ Riccardo Trebiani, Antonio Emanuele Cinà, Jérôme Rony, Maura Pintor, Luca Dem
 
 **Paper:** [https://arxiv.org/pdf/2404.19460](https://arxiv.org/pdf/2404.19460)
 
-**Changelog:** [2.0.0 release notes](https://github.com/sickrichmond/AttackBench/blob/main/CHANGELOG.md)
+**Changelog:** [2.0.1 release notes](https://github.com/sickrichmond/AttackBench/blob/main/CHANGELOG.md)
 
 **Tutorial Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sickrichmond/AttackBench/blob/main/examples/AttackBenchLib.ipynb)
 ## How it works
