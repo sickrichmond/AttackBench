@@ -71,7 +71,7 @@ pip install attackbenchlib
 ### Optional dependencies
 
 ```bash
-# Attack library wrappers (ART, Foolbox, Torchattacks, CleverHans)
+# Compatible attack library wrappers (ART, Foolbox, CleverHans)
 pip install "attackbenchlib[attacks]"
 
 # Model loading utilities (RobustBench)
@@ -80,9 +80,17 @@ pip install "attackbenchlib[models]"
 # Analysis and evaluation tools
 pip install "attackbenchlib[metrics]"
 
-# Everything (attacks + models + metrics)
+# Recommended compatible set (attacks + models + metrics)
 pip install "attackbenchlib[all]"
+
+# Torchattacks, when its legacy dependency stack is acceptable
+pip install "attackbenchlib[torchattacks]"
 ```
+
+> **Note on `torchattacks`:** Torchattacks 3.5.1 pins `requests~=2.25.1`, which
+> conflicts with current notebook and dataset packages. It is therefore not included
+> in `[attacks]` or `[all]`. Install its dedicated extra in an isolated environment if
+> you need those wrappers; all other wrappers remain available without it.
 
 > **Note on `adv-lib`:** The Adversarial Library (`adv-lib`) is not on PyPI, so it is not
 > part of `[all]`. Its implementations are among the top-ranked ones in the AttackBench
@@ -103,10 +111,10 @@ pip install "attackbenchlib[all]"
 
 ### Google Colab
 
-On Google Colab, install with all dependencies:
+On Google Colab, install the compatible model and attack dependencies:
 
 ```python
-!pip install "attackbenchlib[models,attacks]" -q
+!pip install "attackbenchlib[models,attacks]>=2.0.2,<2.1" -q
 ```
 
 > Colab's pre-installed packages can conflict with optional attack/model dependencies.
@@ -167,9 +175,12 @@ Version 2.0 changes what the numbers mean, so results are not comparable with 1.
 - `optimality` is only computed against a real lower envelope — passed in explicitly or
   downloaded from W&B. 1.x silently fell back to the attack's own tracked distances,
   which scored ~1.0 by construction.
+- W&B lower envelopes without the 2.x protocol marker are rejected. Recompute and
+  upload them from 2.x `d*` results before using automatic optimality.
 - The query budget is enforced by default (see above); 1.x enforced none.
 - `run_attack(use_cached=...)` defaults to `False`, and a cached W&B result is only
-  reused when its per-sample hashes match the samples being evaluated.
+  reused when its full schema, query budget, and per-sample hashes match the requested
+  run.
 - `include_metadata` is gone: query counts, timings, predictions and the failure
   indicators are always returned.
 

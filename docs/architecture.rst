@@ -80,9 +80,12 @@ PEP 562 lazy imports to keep the base installation lightweight:
   - ``load_model()``: Load a RobustBench model with metadata
 
 - **Requires** ``attackbenchlib[attacks]``:
-  - ``get_attack()``: Instantiate library attacks dynamically
+  - ``get_attack()``: Instantiate ART, Foolbox, CleverHans, and original attacks
   - ``list_attacks()``: Discover available attacks
   - ``bomn_attack()``: Best-of-MinNorm composite attack
+
+- **Requires** ``attackbenchlib[torchattacks]``:
+  - Torchattacks wrappers, isolated because upstream pins ``requests~=2.25.1``
 
 - **Requires** ``attackbenchlib[metrics]``:
   - ``get_stats()``: Compute statistics from attack results
@@ -109,7 +112,8 @@ Contains the core ``run_attack()`` function. Key features:
   propagations per sample (default 2000, the budget used in the paper). This is what
   makes attacks comparable; pass ``query_budget=None`` to lift it.
 - **W&B caching**: With ``use_cached=True`` (off by default), checks W&B for existing
-  precompiled distances and reuses them only if their per-sample hashes match.
+  precompiled distances and reuses only complete 2.x results whose query budget and
+  per-sample hashes match.
 - **SHA-512 hashing**: Computes a per-image hash on raw RGB values so that
   each sample is uniquely identifiable regardless of subset ordering.
 - **Raw output**: Returns per-sample data only — distances, success flags, hashes,

@@ -64,11 +64,22 @@ AttackBenchLib uses lazy imports. If you see an error like
    # For library attack wrappers
    pip install "attackbenchlib[attacks]"
 
+   # Torchattacks only (legacy requests dependency; use an isolated environment)
+   pip install "attackbenchlib[torchattacks]"
+
    # For model loading
    pip install "attackbenchlib[models]"
 
-   # Everything at once
+   # Recommended compatible set
    pip install "attackbenchlib[all]"
+
+Why is Torchattacks not included in ``attacks`` or ``all``?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Torchattacks 3.5.1 pins ``requests~=2.25.1``. That conflicts with current Colab and
+dataset packages, so installing it as part of the normal stack can downgrade a shared
+HTTP dependency and leave the environment inconsistent. Use
+``attackbenchlib[torchattacks]`` in an isolated environment and run ``pip check``.
 
 How do I install adv-lib?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -277,6 +288,10 @@ Optimal distances are stored on W&B as **hash-based lookup tables**
 (``{sha512_hash: distance}``), computed over the full dataset using all
 available attacks. When evaluating a subset, each sample is matched by its
 hash, ensuring correct optimality values regardless of subset size or ordering.
+
+Only envelopes marked with the 2.x protocol and ``best_observed`` distance semantics
+are accepted. Older envelopes used last-iterate distances and must be rebuilt from 2.x
+results; AttackBench rejects them instead of returning a plausible but invalid score.
 
 See :doc:`optimality` for details.
 

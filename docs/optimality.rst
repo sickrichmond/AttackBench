@@ -134,6 +134,11 @@ subset of the dataset and still get correct optimality values:
    ``optimality`` key out and explains why, rather than falling back on the attack's own
    distances: comparing an attack with itself scores about 1.0 whatever it did.
 
+   AttackBench also rejects W&B envelopes that lack the 2.x protocol and
+   ``best_observed`` distance markers. Until a model/norm envelope has been repopulated
+   from 2.x ``d*`` results, use explicit ``reference_results`` or expect automatic
+   optimality to report that no compatible reference is available.
+
 Global Optimality
 -----------------
 

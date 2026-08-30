@@ -109,18 +109,18 @@ To use attacks from external libraries (requires ``attackbenchlib[attacks]``):
    # List attacks from a specific library
    art_attacks = attackbench.list_attacks(lib='art')
 
-   # Get a specific attack
-   fmn_adv_lib = attackbench.get_attack(
-       lib='adv_lib',
-       attack='fmn',
-       threat_model='l2'
+   # Get a specific attack included in the attacks extra
+   art_pgd = attackbench.get_attack(
+       lib='art',
+       attack='pgd',
+       threat_model='linf'
    )
 
    results = attackbench.run_attack(
        model=model,
        dataset=dataset,
-       attack=fmn_adv_lib,
-       threat_model='l2',
+       attack=art_pgd,
+       threat_model='linf',
        device=device
    )
 

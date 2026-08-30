@@ -38,11 +38,24 @@ AttackBenchLib provides several optional dependency groups for extended function
 
 **Attack Libraries**
 
-Install all supported attack library wrappers (ART, Foolbox, Torchattacks, CleverHans):
+Install the compatible attack library wrappers (ART, Foolbox, CleverHans):
 
 .. code-block:: bash
 
    pip install "attackbenchlib[attacks]"
+
+Torchattacks 3.5.1 pins ``requests~=2.25.1``, which conflicts with current notebook and
+dataset packages. It is deliberately isolated from ``attacks`` and ``all``. If you need
+its wrappers, install the dedicated extra in a separate compatible environment:
+
+.. code-block:: bash
+
+   pip install "attackbenchlib[torchattacks]"
+
+.. warning::
+
+   Installing the Torchattacks extra may downgrade ``requests``. Run ``pip check`` and
+   do not combine it with a modern Colab or datasets environment.
 
 .. note::
 
@@ -89,11 +102,13 @@ so the extra is empty and exists to keep the install command valid):
 
 **All Dependencies**
 
-Install everything (attacks + models + metrics, excluding deeprobust):
+Install the recommended compatible set (attacks + models + metrics):
 
 .. code-block:: bash
 
    pip install "attackbenchlib[all]"
+
+This intentionally excludes Torchattacks, DeepRobust, and the manually installed adv-lib.
 
 **Development**
 

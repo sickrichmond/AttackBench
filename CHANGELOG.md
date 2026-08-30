@@ -2,6 +2,27 @@
 
 All notable user-facing changes to AttackBenchLib are documented here.
 
+## 2.0.2 (unreleased)
+
+### Fixed
+
+- Runtime keyword overrides now reach functions wrapped with ``create_custom_attack()``.
+- The requested norm now reaches the explicit ``threat_model`` parameter used by
+  preconfigured attacks, preventing L2/L1/L0 runs from silently using Linf defaults.
+- Pre-2.0 W&B result artifacts and lower envelopes are rejected before analysis instead
+  of being silently reused with the 2.x protocol.
+- Result and lower-envelope metadata now records the protocol version and
+  ``best_observed`` distance semantics.
+- The ReadTheDocs examples and Colab notebook now use valid extras, supported attack
+  construction, optional W&B login, and explicit 2.x artifact checks.
+
+### Changed
+
+- Torchattacks is now an isolated ``torchattacks`` extra because its upstream 3.5.1
+  release pins ``requests~=2.25.1``. The compatible ``attacks`` and ``all`` extras no
+  longer downgrade ``requests`` in modern notebook environments; the dedicated extra
+  includes the standard wrapper dependencies it needs.
+
 ## 2.0.1 (2026-08-28)
 
 ### Added

@@ -46,7 +46,7 @@ Quick Install
 
    pip install attackbenchlib
 
-   # With all optional dependencies
+   # Recommended compatible attack, model, and metric dependencies
    pip install "attackbenchlib[all]"
 
 .. toctree::

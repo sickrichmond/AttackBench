@@ -29,7 +29,7 @@ From a clean checkout:
    python -m venv .venv
    . .venv/bin/activate
    pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-   pip install -e ".[attacks,dev,docs]"
+   pip install -e ".[attacks,models,dev,docs]"
    pytest
    sphinx-build -W --keep-going -b html docs docs/_build/html
    python -m build
@@ -40,6 +40,9 @@ one fixed-budget and one minimum-norm attack for each supported dataset/norm rel
 claim. Use a CUDA runner for the full CIFAR-10 and ImageNet matrix. For paper-comparable
 optimality, use --reference wandb only after the W&B d* envelopes have been repopulated
 and hash-matched.
+
+Test the ``torchattacks`` extra in a separate environment because upstream pins
+``requests~=2.25.1``; it is intentionally not part of ``attacks`` or ``all``.
 
 TestPyPI
 --------
@@ -63,8 +66,8 @@ the project version:
 
 .. code-block:: bash
 
-   git tag -s v2.0.1 -m "AttackBenchLib 2.0.1"
-   git push origin v2.0.1
+   git tag -s v2.0.2 -m "AttackBenchLib 2.0.2"
+   git push origin v2.0.2
 
 The tag starts the same build/test workflow and sends its artifact to the protected
 pypi environment. A maintainer may instead manually select repository=pypi from main;

@@ -279,6 +279,10 @@ full dataset) can be uploaded and downloaded via W&B. They are stored as
 ``{sha512_hash: distance}`` dictionaries, so any subset of the dataset can be
 matched regardless of ordering or size.
 
+Artifacts must carry the AttackBench 2.x protocol and ``best_observed`` distance
+markers. Legacy envelopes are returned as unavailable and must be rebuilt from 2.x
+``d*`` results; they are never silently mixed into current optimality scores.
+
 .. code-block:: python
 
    # Download optimal distances for a given configuration
@@ -318,9 +322,9 @@ to reuse results already published on W&B:
        use_cached=True
    )
 
-A cached artifact is only reused when its per-sample SHA-512 hashes match your samples
-exactly; on any mismatch (different subset, seed or preprocessing) a warning is emitted
-and the attack runs normally.
+A cached artifact is only reused when its complete result schema, query budget, and
+per-sample SHA-512 hashes match your request exactly; on any mismatch (different subset,
+seed, preprocessing, or protocol) a warning is emitted and the attack runs normally.
 
 Saving Results to Disk
 ----------------------
