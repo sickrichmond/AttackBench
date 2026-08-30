@@ -1,3 +1,5 @@
+from functools import wraps
+
 import torch
 
 
@@ -39,7 +41,7 @@ def create_custom_attack(
         dataset = attackbench.get_loader('cifar10', num_samples=1000)
         results = attackbench.run_attack(model, dataset, custom_attack, 'linf')
     """
-    
+    @wraps(attack_function)
     def wrapped_attack(model, inputs, labels, **kwargs):
         """Internal wrapper that handles custom attack execution"""
         

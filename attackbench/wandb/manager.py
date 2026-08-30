@@ -5,14 +5,35 @@ Provides simple upload/download functions for managing precompiled attack distan
 """
 import json
 import os
-import wandb
+import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
+
+import wandb
 
 # Configuration constants
 WANDB_ENTITY = "attackbench"
 WANDB_PROJECT = "attackbench-precompiled-distancies"
 WANDB_PROJECT_OPTIMAL = "attackbench-optimal-distancies"
+PROTOCOL_VERSION = 2
+DISTANCE_SEMANTICS = "best_observed"
+PRECOMPILED_RESULT_FIELDS = (
+    "distances",
+    "final_distances",
+    "adv_success",
+    "ori_success",
+    "correct",
+    "hashes",
+    "original_predictions",
+    "adversarial_predictions",
+    "num_forwards",
+    "num_backwards",
+    "times",
+    "box_failures",
+    "batch_failures",
+    "targeted",
+    "query_budget",
+)
 
 
 def _has_wandb_credentials() -> bool:
@@ -63,6 +84,50 @@ def _make_artifact_name(*parts) -> str:
     """Build a W&B artifact name from parts, normalised to lowercase."""
     return "-".join(str(p).lower() for p in parts)
 
+
+def _validate_precompiled_data(
+    data: Optional[Dict[str, Any]], artifact_name: str
+) -> Optional[Dict[str, Any]]:
+    """Reject legacy artifacts that cannot reproduce a 2.x run result."""
+    if data is None:
+        return None
+    missing = [field for field in PRECOMPILED_RESULT_FIELDS if field not in data]
+    if missing:
+        warnings.warn(
+            f"Ignoring incompatible pre-2.0 precompiled artifact '{artifact_name}' "
+            f"(missing fields: {', '.join(missing)}). Re-run and upload it with "
+            "AttackBench 2.x.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
+    return data
+
+
+def _validate_optimal_data(
+    data: Optional[Dict[str, Any]], artifact_name: str
+) -> Optional[Dict[str, Any]]:
+    """Reject lower envelopes built with pre-2.0 distance semantics."""
+    if data is None:
+        return None
+    metadata = data.get("metadata", {})
+    compatible = (
+        metadata.get("protocol_version") == PROTOCOL_VERSION
+        and metadata.get("distance_semantics") == DISTANCE_SEMANTICS
+        and metadata.get("format") == "hash_based"
+        and isinstance(data.get("distances"), dict)
+    )
+    if not compatible:
+        warnings.warn(
+            f"Ignoring incompatible pre-2.0 optimal-distance artifact '{artifact_name}'. "
+            "Rebuild the lower envelope from AttackBench 2.x attack results.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
+    return data
+
+
 def upload_precompiled_distances(
     file_path: Union[str, Path] = None,
     attack_data: Dict[str, Any] = None,
@@ -97,6 +162,8 @@ def upload_precompiled_distances(
     
     # Mode 2/3: Create file from attack_data
     if attack_data is not None:
+        if _validate_precompiled_data(attack_data, "attack_data") is None:
+            return False
         # Auto-extract metadata from attack_data if not explicitly provided
         meta = attack_data.get('metadata', {})
         dataset = dataset or meta.get('dataset')
@@ -131,6 +198,8 @@ def upload_precompiled_distances(
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
+            if _validate_precompiled_data(data, str(file_path)) is None:
+                return False
             metadata = data.get('metadata', {})
             dataset = metadata.get('dataset', dataset)
             threat_model = metadata.get('threat_model', threat_model)
@@ -180,7 +249,9 @@ def upload_precompiled_distances(
                     "attack_lib": attack_lib,
                     "threat_model": threat_model,
                     "n_samples": n_samples,
-                    "file_size": Path(file_path).stat().st_size
+                    "file_size": Path(file_path).stat().st_size,
+                    "protocol_version": PROTOCOL_VERSION,
+                    "distance_semantics": DISTANCE_SEMANTICS,
                 }
             )
             artifact.add_file(str(file_path))
@@ -248,7 +319,11 @@ def _download_artifact(
         try:
             print(f"Loading from cache: {local_file}")
             with open(local_file, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+            validated = _validate_precompiled_data(data, artifact_name)
+            if validated is not None:
+                return validated
+            print("Cached artifact is incompatible; checking W&B for a replacement.")
         except json.JSONDecodeError:
             print(f"Warning: Corrupted cache file, re-downloading...")
     
@@ -287,7 +362,7 @@ def _download_artifact(
             data = json.load(f)
         
         print(f"Successfully downloaded")
-        return data
+        return _validate_precompiled_data(data, artifact_name)
         
     except wandb.errors.CommError:
         print(f"Error: Artifact not found: {artifact_name}")
@@ -410,7 +485,9 @@ def upload_optimal_distances(
                 'model_name': model_name,
                 'n_samples': n_samples,
                 'type': 'optimal_distances',
-                'format': 'hash_based'
+                'format': 'hash_based',
+                'protocol_version': PROTOCOL_VERSION,
+                'distance_semantics': DISTANCE_SEMANTICS,
             }
         }
         
@@ -432,6 +509,8 @@ def upload_optimal_distances(
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
+            if _validate_optimal_data(data, str(file_path)) is None:
+                return False
             metadata = data.get('metadata', {})
             dataset = metadata.get('dataset') or dataset
             threat_model = metadata.get('threat_model') or threat_model
@@ -477,6 +556,8 @@ def upload_optimal_distances(
                     "threat_model": threat_model,
                     "type": "optimal_distances",
                     "format": "hash_based",
+                    "protocol_version": PROTOCOL_VERSION,
+                    "distance_semantics": DISTANCE_SEMANTICS,
                     "file_size": Path(file_path).stat().st_size
                 }
             )
@@ -534,7 +615,11 @@ def download_optimal_distances(
         try:
             print(f"Loading optimal distances from cache: {local_file}")
             with open(local_file, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+            validated = _validate_optimal_data(data, artifact_name)
+            if validated is not None:
+                return validated
+            print("Cached envelope is incompatible; checking W&B for a replacement.")
         except json.JSONDecodeError:
             print(f"Warning: Corrupted cache file, re-downloading...")
     
@@ -572,7 +657,7 @@ def download_optimal_distances(
             data = json.load(f)
         
         print(f"Successfully downloaded optimal distances")
-        return data
+        return _validate_optimal_data(data, artifact_name)
         
     except wandb.errors.CommError:
         print(f"Error: Optimal distances artifact not found: {artifact_name}")
@@ -609,6 +694,14 @@ def update_optimal_distances(
         previously in the envelope), 'n_samples' and 'distances' (the merged envelope).
     """
     meta = attack_results.get('metadata', {})
+    if (
+        meta.get('protocol_version') != PROTOCOL_VERSION
+        or meta.get('distance_semantics') != DISTANCE_SEMANTICS
+    ):
+        raise ValueError(
+            "attack_results must come from AttackBench 2.x with best-observed (d*) "
+            "distance semantics; legacy results cannot update the current envelope."
+        )
     dataset = dataset or meta.get('dataset')
     threat_model = threat_model or meta.get('threat_model')
     model_name = model_name or meta.get('model_name')

@@ -15,7 +15,7 @@ from conftest import (
     wasteful_attack,
 )
 
-from attackbench import run_attack
+from attackbench import create_custom_attack, run_attack
 
 
 def test_runs_on_cpu_and_reports_the_expected_distances(model, loader):
@@ -282,3 +282,56 @@ def test_saved_precompiled_result_preserves_full_schema(model, loader, tmp_path)
         "query_budget",
     }
     assert expected.issubset(loaded)
+    assert loaded["metadata"]["protocol_version"] == 2
+    assert loaded["metadata"]["distance_semantics"] == "best_observed"
+    assert executed["metadata"]["protocol_version"] == 2
+
+
+def test_custom_attack_wrapper_preserves_runtime_overrides(model, loader):
+    received = []
+
+    def configurable_attack(model, inputs, labels, margin=0.2, **kwargs):
+        received.append((margin, kwargs["marker"], kwargs["norm"]))
+        outputs = inputs.clone()
+        pixels = outputs[:, 0, 0, 0]
+        outputs[:, 0, 0, 0] = torch.where(
+            pixels > 0.5,
+            torch.tensor(0.5 - margin, device=inputs.device),
+            torch.tensor(0.5 + margin, device=inputs.device),
+        )
+        return outputs
+
+    wrapped = create_custom_attack(configurable_attack, attack_name="configurable")
+    run_attack(
+        model,
+        loader,
+        wrapped,
+        "linf",
+        device=torch.device("cpu"),
+        margin=0.01,
+        marker="forwarded",
+        debug=True,
+    )
+
+    assert received == [(0.01, "forwarded", "linf")] * len(loader)
+
+
+def test_requested_norm_reaches_preconfigured_style_attack(model, loader):
+    received = []
+
+    def norm_aware_attack(
+        model, inputs, labels, threat_model="linf", targets=None, targeted=False, **kwargs
+    ):
+        received.append((threat_model, kwargs))
+        return tight_attack(model, inputs, labels)
+
+    run_attack(
+        model,
+        loader,
+        norm_aware_attack,
+        "l2",
+        device=torch.device("cpu"),
+        debug=True,
+    )
+
+    assert received == [("l2", {})] * len(loader)

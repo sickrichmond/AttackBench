@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # W&B integration for cached distances
-from .wandb.manager import download_precompiled_distances
+from .wandb.manager import PRECOMPILED_RESULT_FIELDS, download_precompiled_distances
 
 # Max forward+backward propagations per sample. 2000 is the budget used in the
 # AttackBench paper: it is what makes attacks comparable to one another.
@@ -24,23 +24,7 @@ DEFAULT_QUERY_BUDGET = 2000
 
 # Fields persisted in precompiled artifacts. A cache hit must be indistinguishable
 # from an executed run for downstream consumers such as BoMN.
-_CACHED_RESULT_FIELDS = (
-    "distances",
-    "final_distances",
-    "adv_success",
-    "ori_success",
-    "correct",
-    "hashes",
-    "original_predictions",
-    "adversarial_predictions",
-    "num_forwards",
-    "num_backwards",
-    "times",
-    "box_failures",
-    "batch_failures",
-    "targeted",
-    "query_budget",
-)
+_CACHED_RESULT_FIELDS = PRECOMPILED_RESULT_FIELDS
 
 
 def _hash_batch(inputs: Tensor) -> list:
@@ -74,8 +58,21 @@ def _call_attack(attack, model, inputs, labels, targeted, targets, **kwargs):
     if "targets" in sig.parameters:
         attack_params["targets"] = targets
 
+    # AttackBench historically exposed the requested norm to custom/library wrappers
+    # as ``norm``. Preconfigured attacks use the clearer ``threat_model`` parameter;
+    # route the same value to that explicit parameter without injecting a new keyword
+    # into arbitrary third-party ``**kwargs`` wrappers.
+    if "threat_model" in sig.parameters and "norm" in kwargs:
+        attack_params["threat_model"] = kwargs["norm"]
+
+    accepts_kwargs = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in sig.parameters.values()
+    )
     for key, value in kwargs.items():
-        if key in sig.parameters:
+        if key == "norm" and "threat_model" in sig.parameters:
+            continue
+        if accepts_kwargs or key in sig.parameters:
             attack_params[key] = value
 
     return attack(**attack_params)
@@ -355,6 +352,8 @@ def run_attack(
                 "threat_model": threat_model,
                 "n_samples": n_samples,
                 "query_budget": query_budget,
+                "protocol_version": 2,
+                "distance_semantics": "best_observed",
                 "source": "wandb_cache",
             }
             return result
@@ -507,6 +506,8 @@ def run_attack(
             "threat_model": threat_model,
             "n_samples": n_samples,
             "query_budget": query_budget,
+            "protocol_version": 2,
+            "distance_semantics": "best_observed",
             "source": "executed",
         },
     }

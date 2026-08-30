@@ -1,6 +1,7 @@
 """BoMN composes attacks and its output feeds the analysis pipeline unchanged."""
 import math
 
+import pytest
 import torch
 
 from attackbench.attacks.bomn import bomn_attack
@@ -59,3 +60,71 @@ def test_get_stats_needs_a_real_reference_for_optimality(model, loader):
                       best_distances=better['distances']['linf'])
     assert 0.0 <= stats['optimality'] < 1.0
     assert stats['optimality_reference'] == 'ensemble_1'
+
+
+def test_precompiled_schema_rejects_legacy_artifacts():
+    from attackbench.wandb.manager import _make_artifact_name, _validate_precompiled_data
+
+    assert _make_artifact_name("CIFAR10", "L2", "Standard") == "cifar10-l2-standard"
+    legacy = {"distances": {"linf": [0.1]}}
+    with pytest.warns(UserWarning, match="incompatible pre-2.0"):
+        assert _validate_precompiled_data(legacy, "legacy-result") is None
+
+
+def test_precompiled_schema_accepts_complete_results():
+    from attackbench.wandb.manager import (
+        PRECOMPILED_RESULT_FIELDS,
+        _validate_precompiled_data,
+    )
+
+    complete = {field: [] for field in PRECOMPILED_RESULT_FIELDS}
+    complete["query_budget"] = 2000
+
+    assert _validate_precompiled_data(complete, "current-result") is complete
+
+
+def test_optimal_schema_rejects_pre_2_distance_semantics():
+    from attackbench.wandb.manager import _validate_optimal_data
+
+    legacy = {
+        "distances": {"linf": {"hash": 0.1}},
+        "metadata": {"format": "hash_based"},
+    }
+    with pytest.warns(UserWarning, match="incompatible pre-2.0"):
+        assert _validate_optimal_data(legacy, "legacy-envelope") is None
+
+
+def test_optimal_schema_accepts_current_lower_envelopes():
+    from attackbench.wandb.manager import (
+        DISTANCE_SEMANTICS,
+        PROTOCOL_VERSION,
+        _validate_optimal_data,
+    )
+
+    current = {
+        "distances": {"linf": {"hash": 0.1}},
+        "metadata": {
+            "format": "hash_based",
+            "protocol_version": PROTOCOL_VERSION,
+            "distance_semantics": DISTANCE_SEMANTICS,
+        },
+    }
+
+    assert _validate_optimal_data(current, "current-envelope") is current
+
+
+def test_legacy_results_cannot_update_current_envelope():
+    from attackbench.wandb.manager import update_optimal_distances
+
+    legacy = {
+        "hashes": ["hash"],
+        "distances": {"linf": [0.1]},
+        "metadata": {
+            "dataset": "toy",
+            "model_name": "model",
+            "threat_model": "linf",
+        },
+    }
+
+    with pytest.raises(ValueError, match="legacy results cannot update"):
+        update_optimal_distances(legacy, dry_run=True)

@@ -65,6 +65,9 @@ def save_precompiled_distances(
         "attack_lib": attack_lib,
         "threat_model": threat_model,
         "n_samples": n_samples,
+        "query_budget": attack_data.get("query_budget"),
+        "protocol_version": 2,
+        "distance_semantics": "best_observed",
     }
     save_data = {
         "distances": attack_data.get("distances", {}),
