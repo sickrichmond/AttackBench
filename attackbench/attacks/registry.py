@@ -9,7 +9,14 @@ from .art import configs as art_configs
 from .cleverhans import configs as cleverhans_configs
 from .foolbox import configs as foolbox_configs
 from .original import configs as original_configs
-from .torchattacks import configs as torchattacks_configs
+
+try:
+    from .torchattacks import configs as torchattacks_configs
+
+    _has_torchattacks = True
+except ImportError:  # pragma: no cover - optional dependency
+    torchattacks_configs = None
+    _has_torchattacks = False
 
 try:
     from .adv_lib import configs as adv_lib_configs
@@ -32,8 +39,10 @@ library_modules = {
     "cleverhans": cleverhans_configs,
     "foolbox": foolbox_configs,
     "original": original_configs,
-    "torchattacks": torchattacks_configs,
 }
+
+if _has_torchattacks:
+    library_modules["torchattacks"] = torchattacks_configs
 
 if _has_adv_lib:
     library_modules["adv_lib"] = adv_lib_configs
@@ -100,6 +109,15 @@ def list_attacks(threat_model: str = None, lib: str = None) -> list:
         list_attacks(lib='original')             # original library only
         list_attacks('l2', 'foolbox')            # l2 foolbox attacks
     """
+    if lib == "torchattacks" and not _has_torchattacks:
+        raise ImportError(
+            "Torchattacks is not installed. Install attackbenchlib[torchattacks] "
+            "in an environment compatible with its requests dependency."
+        )
+    if lib == "adv_lib" and not _has_adv_lib:
+        raise ImportError("adv-lib is not installed; follow the manual install instructions.")
+    if lib == "deeprobust" and not _has_deeprobust:
+        raise ImportError("DeepRobust is not installed. Install attackbenchlib[deeprobust].")
     results = []
     libs_to_scan = {lib: library_modules[lib]} if lib else library_modules
 
@@ -233,10 +251,18 @@ def get_attack(lib: str, attack: str, threat_model: str, **kwargs) -> Callable:
         attack = get_attack(lib='torchattacks', attack='cw_l2', threat_model='l2')
     """
 
+    if lib == "torchattacks" and not _has_torchattacks:
+        raise ImportError(
+            "Torchattacks is not installed. Install attackbenchlib[torchattacks] "
+            "in an environment compatible with its requests dependency."
+        )
+    if lib == "adv_lib" and not _has_adv_lib:
+        raise ImportError("adv-lib is not installed; follow the manual install instructions.")
+    if lib == "deeprobust" and not _has_deeprobust:
+        raise ImportError("DeepRobust is not installed. Install attackbenchlib[deeprobust].")
     if lib not in library_getters:
         available_libs = list(library_getters.keys())
         raise ValueError(f"Unknown attack library: {lib}. Available: {available_libs}")
-
     if attack not in library_getters[lib]:
         available_attacks = list(library_getters[lib].keys())
         raise ValueError(

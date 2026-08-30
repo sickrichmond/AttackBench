@@ -14,7 +14,8 @@ the optimization — the two things that make runs comparable with the AttackBen
 
 Optional subpackages, independent of each other:
 
-- ``attacks``: ``pip install attackbenchlib[attacks]`` (adversarial attack libraries)
+- ``attacks``: ``pip install attackbenchlib[attacks]`` (ART, Foolbox, CleverHans)
+- ``torchattacks``: isolated extra for Torchattacks' legacy dependency stack
 - ``models``: ``pip install attackbenchlib[models]`` (RobustBench model zoo)
 - ``metrics``: ``pip install attackbenchlib[metrics]`` (analysis & evaluation tools)
 """

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attackbenchlib"
-version = "2.0.1"
+version = "2.0.2"
 description = "A Python package for benchmarking adversarial attacks and defenses."
 authors = [
     { name = "Antonio Cinà", email="antonio.cina@unige.it"},
@@ -48,15 +48,22 @@ Changelog = "https://github.com/sickrichmond/AttackBench/blob/main/CHANGELOG.md"
 attackbench-acceptance = "attackbench.acceptance:main"
 
 [project.optional-dependencies]
-# Attack package - enables PyPI-hosted attack libraries (except deeprobust).
-# adv-lib is installed manually from its source repository; see the README.
+# Attack package - enables ART, Foolbox, and CleverHans.
+# Torchattacks is isolated in its own extra because version 3.5.1 pins an obsolete
+# requests release. adv-lib is installed manually; see the README.
 attacks = [
     "adversarial-robustness-toolbox",
     "foolbox",
-    "torchattacks",
     "cleverhans==4.0.0",
     # Note: robustbench is NOT needed here — attacks don't depend on it.
     #       It belongs in [models] for loading pretrained robust models.
+]
+
+# Install separately: torchattacks 3.5.1 requires requests~=2.25.1, which conflicts
+# with current notebook and dataset stacks. It is intentionally excluded from [all].
+torchattacks = [
+    "attackbenchlib[attacks]",
+    "torchattacks",
 ]
 
 # DeepRobust attacks (requires scipy<1.8.0, incompatible with Python 3.10+)
@@ -84,8 +91,8 @@ models = [
 # `pip install attackbenchlib[metrics]` stays valid.
 metrics = []
 
-# Complete package - includes all PyPI-hosted optional dependencies (except deeprobust).
-# adv-lib must be installed manually from its source repository; see the README.
+# Recommended package - includes compatible attack, model, and metric dependencies.
+# Torchattacks, DeepRobust, and adv-lib remain separate; see the README.
 all = [
     "attackbenchlib[attacks,models,metrics]",
 ]
